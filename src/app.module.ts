@@ -6,8 +6,8 @@ import { AgentModule } from './agent/agent.module';
 import { ArtifactsModule } from './artifacts/artifacts.module';
 import { AuthModule } from './auth/auth.module';
 import { BillingModule } from './billing/billing.module';
-import { env } from './config';
 import { DatabaseModule } from './db/database.module';
+import { redisConnectionOptions } from './redis/redis.util';
 import { HealthController } from './health.controller';
 import { KeysModule } from './keys/keys.module';
 import { MemoryModule } from './memory/memory.module';
@@ -19,16 +19,16 @@ import { UsersModule } from './users/users.module';
   imports: [
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     BullModule.forRootAsync({
-      useFactory: () => {
-        const url = new URL(env('REDIS_URL'));
-        return {
-          connection: {
-            host: url.hostname,
-            port: Number(url.port || 6379),
-            maxRetriesPerRequest: null,
-          },
-        };
-      },
+      useFactory: () => ({
+        prefix: 'micromanus', // namespace jobs on shared Redis instances
+        connection: { ...redisConnectionOptions(), maxRetriesPerRequest: null },
+        defaultJobOptions: {
+          attempts: 2,
+          backoff: { type: 'exponential', delay: 2000 },
+          removeOnComplete: 50,
+          removeOnFail: 100,
+        },
+      }),
     }),
     DatabaseModule,
     RedisModule,

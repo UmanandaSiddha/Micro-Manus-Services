@@ -5,11 +5,22 @@ import { env } from '../config';
 @Injectable()
 export class DatabaseService implements OnModuleDestroy {
   readonly pool = new Pool({ connectionString: env('DATABASE_URL'), max: 10 });
+  private closed = false;
+
+  /** Readiness ping — fail at boot, not on the first request. */
+  async onModuleInit(): Promise<void> {
+    await this.pool.query('SELECT 1');
+  }
+
+  isClosed(): boolean {
+    return this.closed;
+  }
 
   async query<T extends QueryResultRow = QueryResultRow>(
     sql: string,
     params: unknown[] = [],
   ): Promise<T[]> {
+    if (this.closed) throw new Error('Database pool is closed');
     const res = await this.pool.query<T>(sql, params);
     return res.rows;
   }
@@ -38,6 +49,7 @@ export class DatabaseService implements OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    this.closed = true; // interval sweeps must not hammer a dying pool
     await this.pool.end();
   }
 }

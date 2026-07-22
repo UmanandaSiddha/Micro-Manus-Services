@@ -1,16 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { DecodedIdToken } from 'firebase-admin/auth';
 import { DatabaseService } from '../db/database.service';
+import { FirebaseService } from './firebase.service';
 
-export interface OAuthProfile {
-  provider: 'google' | 'github';
-  oauthId: string;
-  email: string;
-  name: string | null;
-  image: string | null;
-}
-
-interface UserRow {
+export interface UserRow {
   id: string;
   email: string;
   name: string | null;
@@ -18,18 +12,30 @@ interface UserRow {
   credits: number;
 }
 
+const PROVIDER_MAP: Record<string, 'google' | 'github'> = {
+  'google.com': 'google',
+  'github.com': 'github',
+};
+
 @Injectable()
 export class AuthService {
   constructor(
     private readonly db: DatabaseService,
     private readonly jwt: JwtService,
+    private readonly firebase: FirebaseService,
   ) {}
 
-  /**
-   * Upsert keyed on email: same person signing in via the other provider
-   * re-links to that provider instead of failing the unique(email) constraint.
-   */
-  async upsertUser(p: OAuthProfile): Promise<UserRow> {
+  /** Verify a Firebase ID token and upsert our user row. */
+  async loginWithIdToken(idToken: string): Promise<UserRow> {
+    const decoded: DecodedIdToken = await this.firebase.verifyIdToken(idToken);
+    const provider = PROVIDER_MAP[decoded.firebase?.sign_in_provider ?? ''];
+    if (!provider) throw new UnauthorizedException('Unsupported sign-in provider');
+
+    // GitHub accounts can hide their email — fall back to a stable synthetic one.
+    const email = decoded.email ?? `${decoded.uid}@users.noreply.firebase`;
+
+    // Keyed on email: the same person signing in via the other provider
+    // re-links instead of violating unique(email).
     const row = await this.db.one<UserRow>(
       `INSERT INTO users (email, name, image, oauth_provider, oauth_id)
        VALUES ($1, $2, $3, $4, $5)
@@ -39,7 +45,7 @@ export class AuthService {
          oauth_provider = EXCLUDED.oauth_provider,
          oauth_id = EXCLUDED.oauth_id
        RETURNING id, email, name, image, credits`,
-      [p.email, p.name, p.image, p.provider, p.oauthId],
+      [email, decoded.name ?? null, decoded.picture ?? null, provider, decoded.uid],
     );
     return row!;
   }

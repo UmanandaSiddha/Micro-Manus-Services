@@ -5,10 +5,9 @@ const REQUIRED = [
   'JWT_SECRET',
   'ENCRYPTION_KEY',
   'APP_URL',
-  'GOOGLE_CLIENT_ID',
-  'GOOGLE_CLIENT_SECRET',
-  'GITHUB_CLIENT_ID',
-  'GITHUB_CLIENT_SECRET',
+  'FIREBASE_PROJECT_ID',
+  'FIREBASE_CLIENT_EMAIL',
+  'FIREBASE_PRIVATE_KEY',
 ] as const;
 
 export function assertEnv(): void {

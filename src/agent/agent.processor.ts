@@ -90,7 +90,8 @@ export class AgentProcessor extends WorkerHost {
       if (memoryBlock) msgs.unshift({ role: 'user', content: memoryBlock });
 
       // Resume support: overlay already-completed steps (BullMQ retry).
-      const steps: RunStep[] = run.steps ?? [];
+      // Concurrent tool persistence can append out of index order — sort.
+      const steps: RunStep[] = (run.steps ?? []).sort((a, b) => a.i - b.i);
       for (const s of steps) {
         if (s.kind === 'llm') {
           msgs.push({ role: 'assistant', content: s.text, toolCalls: s.toolCalls.length ? s.toolCalls : undefined });

@@ -13,7 +13,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "56379:6379" # host 6379 is held by another project's redis-stack
 
 volumes:
   pgdata:

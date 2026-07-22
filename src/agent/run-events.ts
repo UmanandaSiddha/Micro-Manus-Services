@@ -39,7 +39,7 @@ export type RunStep =
 /** Map persisted steps back to SSE events (connect-time replay). */
 export function stepsToEvents(steps: RunStep[]): RunEvent[] {
   const events: RunEvent[] = [];
-  for (const s of steps) {
+  for (const s of [...steps].sort((a, b) => a.i - b.i)) {
     if (s.kind === 'llm') {
       if (s.text) events.push({ event: 'text_delta', data: { stepIndex: s.i, delta: s.text } });
       events.push({ event: 'token_usage', data: { stepIndex: s.i, ...s.usage } });
