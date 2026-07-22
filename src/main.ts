@@ -5,7 +5,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
-import { assertEnv } from './config';
+import { assertEnv, env } from './config';
 
 // A rejected promise nobody awaited must not kill the worker; a truly
 // uncaught exception must — the orchestrator restarts a clean process.
@@ -21,6 +21,21 @@ async function bootstrap() {
   assertEnv();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true, // Stripe webhook signature verification needs the raw body
+  });
+  // The client calls this API directly (no proxy). Routes live under /api/*;
+  // bare /health stays for probes.
+  app.setGlobalPrefix('api', { exclude: ['health'] });
+  // Cross-origin cookies only work with an explicit origin allowlist +
+  // credentials — a wildcard origin silently breaks them.
+  const origins = (process.env.CORS_ORIGINS ?? env('APP_URL'))
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  app.enableCors({
+    origin: origins,
+    credentials: true,
+    allowedHeaders: ['Content-Type'],
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
   });
   app.use(cookieParser());
   app.useGlobalPipes(
