@@ -1,6 +1,7 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { AgentModule } from './agent/agent.module';
+import { ArtifactsModule } from './artifacts/artifacts.module';
 import { AuthModule } from './auth/auth.module';
 import { BillingModule } from './billing/billing.module';
 import { env } from './config';
@@ -33,6 +34,7 @@ import { UsersModule } from './users/users.module';
     KeysModule,
     ModelsModule,
     AgentModule,
+    ArtifactsModule,
   ],
   controllers: [HealthController],
 })

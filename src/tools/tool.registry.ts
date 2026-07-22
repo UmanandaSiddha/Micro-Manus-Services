@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ToolDef } from '../llm/types';
+import { CreateArtifactTool } from './create-artifact.tool';
 import { FetchUrlTool } from './fetch-url.tool';
+import { ReadArtifactTool } from './read-artifact.tool';
 import { AgentTool, ToolCtx, ToolOutput } from './tool.types';
 import { WebSearchTool } from './web-search.tool';
 
@@ -8,8 +10,14 @@ import { WebSearchTool } from './web-search.tool';
 export class ToolRegistry {
   private readonly tools = new Map<string, AgentTool>();
 
-  constructor(webSearch: WebSearchTool, fetchUrl: FetchUrlTool) {
-    for (const t of [webSearch, fetchUrl]) this.register(t);
+  constructor(
+    webSearch: WebSearchTool,
+    fetchUrl: FetchUrlTool,
+    createArtifact: CreateArtifactTool,
+    readArtifact: ReadArtifactTool,
+  ) {
+    for (const t of [webSearch, fetchUrl, createArtifact, readArtifact] as AgentTool[])
+      this.register(t);
   }
 
   register(tool: AgentTool): void {
