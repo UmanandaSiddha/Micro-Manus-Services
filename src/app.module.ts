@@ -8,6 +8,7 @@ import { env } from './config';
 import { DatabaseModule } from './db/database.module';
 import { HealthController } from './health.controller';
 import { KeysModule } from './keys/keys.module';
+import { MemoryModule } from './memory/memory.module';
 import { ModelsModule } from './models/models.module';
 import { RedisModule } from './redis/redis.module';
 import { UsersModule } from './users/users.module';
@@ -35,6 +36,7 @@ import { UsersModule } from './users/users.module';
     ModelsModule,
     AgentModule,
     ArtifactsModule,
+    MemoryModule,
   ],
   controllers: [HealthController],
 })

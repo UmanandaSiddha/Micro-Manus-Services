@@ -1,9 +1,11 @@
-import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
+import { InjectQueue, OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
+import { Job, Queue } from 'bullmq';
 import { DatabaseService } from '../db/database.service';
 import { LlmService } from '../llm/llm.service';
 import { ChatMsg } from '../llm/types';
+import { MemoryService } from '../memory/memory.service';
+import { SUMMARIZE_QUEUE } from '../memory/summarize.processor';
 import { getModel } from '../models/registry';
 import { RedisService } from '../redis/redis.service';
 import { ToolRegistry } from '../tools/tool.registry';
@@ -34,6 +36,8 @@ export class AgentProcessor extends WorkerHost {
     private readonly llm: LlmService,
     private readonly tools: ToolRegistry,
     private readonly usage: UsageService,
+    private readonly memory: MemoryService,
+    @InjectQueue(SUMMARIZE_QUEUE) private readonly summarizeQueue: Queue,
   ) {
     super();
   }
@@ -68,6 +72,11 @@ export class AgentProcessor extends WorkerHost {
         toolCalls: m.tool_calls ?? undefined,
         toolCallId: m.tool_call_id ?? undefined,
       }));
+
+      // Long-term memory (docs/memory.md): retrieved block goes before recency.
+      const question = [...msgs].reverse().find((m) => m.role === 'user')?.content ?? '';
+      const memoryBlock = await this.memory.retrievalBlock(run.thread_id, question);
+      if (memoryBlock) msgs.unshift({ role: 'user', content: memoryBlock });
 
       // Resume support: overlay already-completed steps (BullMQ retry).
       const steps: RunStep[] = run.steps ?? [];
@@ -217,6 +226,13 @@ export class AgentProcessor extends WorkerHost {
       await publish({
         event: 'run_completed',
         data: { runId: run.id, costUsd: runCost, credits: credits?.credits ?? 0 },
+      });
+
+      // Fold old turns into summaries when the thread grows (docs/memory.md).
+      await this.summarizeQueue.add('summarize', {
+        threadId: run.thread_id,
+        userId: run.user_id,
+        modelId: run.model_id,
       });
     } catch (e) {
       const attempts = (job.opts.attempts ?? 1) as number;
