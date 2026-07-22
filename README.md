@@ -1,99 +1,47 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# MicroManus
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A deep-research AI agent with usage-based billing. Ask a hard question — the agent plans, searches the web, reads sources, reasons in a loop, and writes cited reports you can download as typeset PDFs. Bring your own LLM key (OpenRouter / OpenAI / Anthropic / Kimi) and see exactly what every step cost, split by input / output / cache tokens.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+**Stack:** Next.js 16 (client) · NestJS 10 (server) · PostgreSQL + pgvector · Redis + BullMQ · Puppeteer · Stripe (test mode) · Tavily · Voyage AI. No ORM (raw SQL + dbmate), no agent framework (custom loop — raw provider `usage` objects are the point).
 
-## Description
+## How it works
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+1. **Sign in** with Google or GitHub (Firebase popup, no passwords).
+2. **Unlock** with the coupon `SID_DRDROID` or a $5 test-mode card payment (`4242 4242 4242 4242`) → 5 credits. 1 credit = 1 research run; failed runs auto-refund.
+3. **Add your LLM API key** in Settings — auto-detected, AES-256-GCM encrypted, only a hint ever leaves the server. OpenRouter unlocks Claude + GPT + Kimi at once.
+4. **Research.** Watch the agent's live trace (searches, page reads, token usage, running cost) stream in. Ask for a report → downloadable typeset PDF with citations.
+5. **Dashboard** shows per-chat cost split by input / output / cache-read / cache-write tokens, cache savings, and a what-if comparison across models.
 
-## Project setup
+## Run locally
 
-```bash
-$ npm install
+```sh
+# infra
+cd server
+docker compose up -d          # postgres(+pgvector) on 55432, redis on 6379
+npm install && npm run db:up  # dbmate migrations
+
+# env — copy and fill (see docs/deployment.md for every var)
+cp .env.example .env
+
+# backend
+npm run start:dev             # :4000
+
+# frontend
+cd ../client && npm install && npm run dev   # :3000
+
+# stripe webhooks (optional, for the card flow)
+stripe listen --forward-to localhost:4000/billing/webhook
 ```
 
-## Compile and run the project
+Auth setup (Firebase): enable Google + GitHub providers in the Firebase console, and put the service-account fields in `server/.env` (`FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY`). The web config lives in `client/lib/firebase.ts` (public by design).
 
-```bash
-# development
-$ npm run start
+## Repo map
 
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+```
+client/   Next.js app — landing, paywall, chat + live run timeline, dashboard, settings
+server/   NestJS app — auth, billing, BYOK keys, agent loop (BullMQ), tools, artifacts,
+          memory (pgvector), usage metering; db/migrations; docker-compose.yml
+docs/     the full spec — architecture, agent loop, API contract, billing math, roadmap
 ```
 
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Read `docs/architecture.md` first; `docs/roadmap.md` has the milestone exit tests and the end-to-end demo script.
