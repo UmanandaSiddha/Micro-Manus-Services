@@ -30,6 +30,17 @@ interface RunRow {
 export class AgentProcessor extends WorkerHost {
   private readonly log = new Logger(AgentProcessor.name);
 
+  /** Boot sweep: runs stuck 'running' >30min lost their job — fail + refund. */
+  async onModuleInit(): Promise<void> {
+    const stale = await this.db.query<RunRow>(
+      `SELECT * FROM runs WHERE status = 'running' AND started_at < now() - interval '30 minutes'`,
+    );
+    for (const run of stale) {
+      this.log.warn(`Sweeping stale run ${run.id}`);
+      await this.finalizeFailed(run, 'Run interrupted by a server restart');
+    }
+  }
+
   constructor(
     private readonly db: DatabaseService,
     private readonly redis: RedisService,

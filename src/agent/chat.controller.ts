@@ -12,6 +12,7 @@ import {
   ParseUUIDPipe,
   Post,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Queue } from 'bullmq';
 import { IsString, Length } from 'class-validator';
 import { User } from '../auth/user.decorator';
@@ -88,6 +89,7 @@ export class ChatController {
   }
 
   @Post('threads/:id/messages')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(202)
   async sendMessage(
     @User() userId: string,
