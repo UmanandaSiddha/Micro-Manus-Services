@@ -106,26 +106,36 @@ export class ChatController {
     if (running) throw new ForbiddenException('A run is already in progress on this thread');
 
     // Atomic credit deduction — the load-bearing pattern from docs/database.md.
-    const result = await this.db.tx(async (q) => {
-      const deducted = await q.one<{ credits: number }>(
-        `UPDATE users SET credits = credits - 1 WHERE id = $1 AND credits > 0 RETURNING credits`,
-        [userId],
-      );
-      if (!deducted) return null;
-      await q.query(
-        `INSERT INTO messages (thread_id, role, content) VALUES ($1, 'user', $2)`,
-        [threadId, dto.content],
-      );
-      const run = await q.one<{ id: string }>(
-        `INSERT INTO runs (thread_id, user_id, model_id) VALUES ($1, $2, $3) RETURNING id`,
-        [threadId, userId, dto.modelId],
-      );
-      await q.query(
-        `INSERT INTO credit_ledger (user_id, delta, reason, ref_id) VALUES ($1, -1, 'run', $2)`,
-        [userId, run!.id],
-      );
-      return { runId: run!.id, credits: deducted.credits };
-    });
+    // The whole thing is one tx: if the run INSERT hits the one-running-per-
+    // thread unique index (concurrent double-send), the deduction rolls back too.
+    let result: { runId: string; credits: number } | null;
+    try {
+      result = await this.db.tx(async (q) => {
+        const deducted = await q.one<{ credits: number }>(
+          `UPDATE users SET credits = credits - 1 WHERE id = $1 AND credits > 0 RETURNING credits`,
+          [userId],
+        );
+        if (!deducted) return null;
+        await q.query(
+          `INSERT INTO messages (thread_id, role, content) VALUES ($1, 'user', $2)`,
+          [threadId, dto.content],
+        );
+        const run = await q.one<{ id: string }>(
+          `INSERT INTO runs (thread_id, user_id, model_id) VALUES ($1, $2, $3) RETURNING id`,
+          [threadId, userId, dto.modelId],
+        );
+        await q.query(
+          `INSERT INTO credit_ledger (user_id, delta, reason, ref_id) VALUES ($1, -1, 'run', $2)`,
+          [userId, run!.id],
+        );
+        return { runId: run!.id, credits: deducted.credits };
+      });
+    } catch (e) {
+      if ((e as { code?: string }).code === '23505') {
+        throw new ForbiddenException('A run is already in progress on this thread');
+      }
+      throw e;
+    }
     if (!result) throw new HttpException('Out of credits', 402);
 
     await this.queue.add('run', { runId: result.runId }, { attempts: 2, backoff: { type: 'fixed', delay: 2000 } });

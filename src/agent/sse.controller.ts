@@ -42,13 +42,14 @@ export class SseController {
     });
     res.flushHeaders();
 
+    let closed = false;
     const send = (e: RunEvent) => {
+      if (closed) return; // a live terminal event may end the response mid-replay
       res.write(`event: ${e.event}\ndata: ${JSON.stringify(e.data)}\n\n`);
     };
 
     // Subscribe BEFORE replaying so no live event slips through the gap.
     const sub = this.redis.createSubscriber();
-    let closed = false;
     const cleanup = () => {
       if (closed) return;
       closed = true;
@@ -97,9 +98,13 @@ export class SseController {
       });
       cleanup();
     } else if (fresh?.status === 'failed') {
+      const refunded = await this.db.one(
+        `SELECT 1 FROM credit_ledger WHERE reason = 'refund' AND ref_id = $1 LIMIT 1`,
+        [runId],
+      );
       send({
         event: 'run_failed',
-        data: { runId, error: fresh.error ?? 'failed', creditRefunded: false },
+        data: { runId, error: fresh.error ?? 'failed', creditRefunded: !!refunded },
       });
       cleanup();
     }

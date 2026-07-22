@@ -92,6 +92,11 @@ export class AgentProcessor extends WorkerHost {
       // Resume support: overlay already-completed steps (BullMQ retry).
       // Concurrent tool persistence can append out of index order — sort.
       const steps: RunStep[] = (run.steps ?? []).sort((a, b) => a.i - b.i);
+      // If a crash landed between persisting an llm step (with tool calls) and
+      // persisting ALL of its tool results, replaying it would leave a dangling
+      // tool_use — providers reject that. Drop the incomplete trailing round so
+      // the loop regenerates it cleanly.
+      dropIncompleteTrailingRound(steps);
       for (const s of steps) {
         if (s.kind === 'llm') {
           msgs.push({ role: 'assistant', content: s.text, toolCalls: s.toolCalls.length ? s.toolCalls : undefined });
@@ -112,7 +117,7 @@ export class AgentProcessor extends WorkerHost {
 
       while (iteration < MAX_ITERATIONS) {
         if (await this.redis.client.get(cancelKey(run.id))) {
-          return this.finalizeFailed(run, 'Cancelled by user', steps);
+          return this.finalizeFailed(run, 'Cancelled by user');
         }
 
         const stepIndex = steps.length;
@@ -228,7 +233,13 @@ export class AgentProcessor extends WorkerHost {
            WHERE id = $1`,
           [run.thread_id, run.model_id],
         );
-        await q.query(`UPDATE runs SET status = 'done', finished_at = now() WHERE id = $1`, [run.id]);
+        // Guard on status: a boot sweep may have already failed+refunded this
+        // run; don't resurrect it to 'done' (that would double-count).
+        await q.query(
+          `UPDATE runs SET status = 'done', finished_at = now()
+           WHERE id = $1 AND status = 'running'`,
+          [run.id],
+        );
       });
 
       const credits = await this.db.one<{ credits: number }>(
@@ -268,34 +279,58 @@ export class AgentProcessor extends WorkerHost {
     ]);
   }
 
-  /** Refund the credit only when the run produced nothing (docs/billing.md). */
-  private async finalizeFailed(run: RunRow, error: string, steps?: RunStep[]): Promise<void> {
-    const currentSteps =
-      steps ??
-      ((await this.db.one<{ steps: RunStep[] }>(`SELECT steps FROM runs WHERE id = $1`, [run.id]))
-        ?.steps ?? []);
-    const producedText = currentSteps.some((s) => s.kind === 'llm' && s.text.trim().length > 0);
-    const refund = !producedText;
-
+  /**
+   * A failed run never delivered a final answer (that only happens on the
+   * success path), so it always refunds — a no-answer run must not cost a
+   * credit. The status guard makes this idempotent: only the transition out of
+   * 'running' refunds, so a boot sweep racing a worker can't double-refund.
+   */
+  private async finalizeFailed(run: RunRow, error: string): Promise<void> {
     await this.db.tx(async (q) => {
-      await q.query(
-        `UPDATE runs SET status = 'failed', error = $2, finished_at = now() WHERE id = $1`,
+      const failed = await q.one<{ id: string }>(
+        `UPDATE runs SET status = 'failed', error = $2, finished_at = now()
+         WHERE id = $1 AND status = 'running' RETURNING id`,
         [run.id, error.slice(0, 500)],
       );
-      if (refund) {
-        await q.query(`UPDATE users SET credits = credits + 1 WHERE id = $1`, [run.user_id]);
-        await q.query(
-          `INSERT INTO credit_ledger (user_id, delta, reason, ref_id) VALUES ($1, 1, 'refund', $2)`,
-          [run.user_id, run.id],
-        );
-      }
+      if (!failed) return; // already finalized elsewhere — nothing to do
+      await q.query(`UPDATE users SET credits = credits + 1 WHERE id = $1`, [run.user_id]);
+      await q.query(
+        `INSERT INTO credit_ledger (user_id, delta, reason, ref_id) VALUES ($1, 1, 'refund', $2)`,
+        [run.user_id, run.id],
+      );
     });
     await this.redis.client.publish(
       runChannel(run.id),
       JSON.stringify({
         event: 'run_failed',
-        data: { runId: run.id, error: error.slice(0, 300), creditRefunded: refund },
+        data: { runId: run.id, error: error.slice(0, 300), creditRefunded: true },
       } satisfies RunEvent),
     );
   }
+}
+
+/**
+ * Mutates `steps` in place: if the last llm step requested tools but not every
+ * call has a persisted tool result, truncate from that llm step onward. Keeps
+ * the resumed message history at a clean assistant/tool boundary.
+ */
+function dropIncompleteTrailingRound(steps: RunStep[]): void {
+  let lastLlm = -1;
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (steps[i].kind === 'llm') {
+      lastLlm = i;
+      break;
+    }
+  }
+  if (lastLlm === -1) return;
+  const llm = steps[lastLlm] as Extract<RunStep, { kind: 'llm' }>;
+  if (!llm.toolCalls.length) return;
+  const resolved = new Set(
+    steps
+      .slice(lastLlm + 1)
+      .filter((s): s is Extract<RunStep, { kind: 'tool' }> => s.kind === 'tool')
+      .map((s) => s.callId),
+  );
+  const complete = llm.toolCalls.every((tc) => resolved.has(tc.id));
+  if (!complete) steps.splice(lastLlm);
 }

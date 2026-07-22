@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   Logger,
@@ -84,7 +85,7 @@ export class BillingService {
 
   async redeem(userId: string, code: string): Promise<{ credits: number }> {
     const grant = COUPONS[code.trim().toUpperCase()];
-    if (!grant) throw new ConflictException('Invalid coupon code');
+    if (!grant) throw new BadRequestException('Invalid coupon code'); // 400 per api.md; 409 = already redeemed
 
     return this.db.tx(async (q) => {
       const inserted = await q.one(

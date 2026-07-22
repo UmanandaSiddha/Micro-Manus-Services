@@ -11,7 +11,9 @@ export async function streamAnthropicTurn(req: TurnRequest): Promise<TurnResult>
 
   const stream = client.messages.stream({
     model: req.model,
-    max_tokens: 8192,
+    // Deep-research reports can be long; 8k truncated them mid-document. We
+    // stream, so a high cap is safe (only tokens actually produced are billed).
+    max_tokens: 32_000,
     system: [
       { type: 'text', text: req.system, cache_control: { type: 'ephemeral' } },
     ],

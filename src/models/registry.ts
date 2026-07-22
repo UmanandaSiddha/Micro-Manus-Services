@@ -103,17 +103,14 @@ export function wireId(model: ModelEntry, keyProvider: KeyProvider): string {
 
 /**
  * Which registry models a stored key unlocks. OpenRouter unlocks everything;
- * a direct key unlocks its vendor's models when the probe saw the id (or the
- * probe returned nothing usable — some providers gate /models).
+ * a direct key unlocks its vendor's models. We deliberately DON'T intersect
+ * with the probed /models list — provider catalogs use ids that rarely match
+ * our canonical ids exactly, and intersecting there would leave the picker
+ * empty for a perfectly valid key. The key already proved itself at probe time.
  */
-export function modelsForKey(provider: KeyProvider, reportedIds: string[]): ModelEntry[] {
+export function modelsForKey(provider: KeyProvider, _reportedIds: string[]): ModelEntry[] {
   if (provider === 'openrouter') return MODELS;
-  const bare = new Set(reportedIds.map((m) => m.split('/').pop()!.toLowerCase()));
-  return MODELS.filter(
-    (m) =>
-      VENDOR_TO_KEY_PROVIDER[m.vendor] === provider &&
-      (bare.size === 0 || bare.has(m.ids.direct.toLowerCase())),
-  );
+  return MODELS.filter((m) => VENDOR_TO_KEY_PROVIDER[m.vendor] === provider);
 }
 
 export function getModel(id: string): ModelEntry | undefined {

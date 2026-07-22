@@ -26,16 +26,17 @@ async function assertPublicHttpUrl(raw: string): Promise<URL> {
 
 function isPrivate(ip: string): boolean {
   if (ip.includes(':')) {
-    // v6: loopback, link-local, unique-local, v4-mapped private
     const low = ip.toLowerCase();
+    // v4-mapped (::ffff:a.b.c.d) → validate the embedded v4 address directly
+    const mapped = low.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+    if (mapped) return isPrivate(mapped[1]);
+    // v6: loopback, link-local, unique-local
     return (
       low === '::1' ||
+      low === '::' ||
       low.startsWith('fe80') ||
       low.startsWith('fc') ||
-      low.startsWith('fd') ||
-      low.includes('127.0.0.1') ||
-      low.includes('::ffff:10.') ||
-      low.includes('::ffff:192.168.')
+      low.startsWith('fd')
     );
   }
   const [a, b] = ip.split('.').map(Number);
@@ -84,12 +85,21 @@ export class FetchUrlTool implements AgentTool {
   };
 
   async execute(args: Record<string, unknown>): Promise<ToolOutput> {
-    const url = await assertPublicHttpUrl(String(args.url ?? ''));
-    const res = await fetch(url, {
-      redirect: 'follow',
-      headers: { 'User-Agent': 'MicroManusBot/1.0 (+research agent)' },
-      signal: AbortSignal.timeout(15_000),
-    });
+    let url = await assertPublicHttpUrl(String(args.url ?? ''));
+    // Follow redirects MANUALLY, re-validating each hop — otherwise a public
+    // host can 302 to 169.254.169.254 / 127.0.0.1 and bypass the SSRF guard.
+    let res: Response;
+    for (let hop = 0; ; hop++) {
+      res = await fetch(url, {
+        redirect: 'manual',
+        headers: { 'User-Agent': 'MicroManusBot/1.0 (+research agent)' },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (res.status < 300 || res.status >= 400) break;
+      const location = res.headers.get('location');
+      if (!location || hop >= 5) break;
+      url = await assertPublicHttpUrl(new URL(location, url).toString());
+    }
     if (!res.ok) {
       return { content: `Fetch failed: HTTP ${res.status}`, summary: `HTTP ${res.status} — ${url.hostname}` };
     }
