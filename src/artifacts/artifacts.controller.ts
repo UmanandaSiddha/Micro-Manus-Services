@@ -41,6 +41,11 @@ export class ArtifactsController {
         'Content-Type': MIME[a.type] ?? 'application/octet-stream',
         'Content-Disposition': 'inline',
         'Cache-Control': 'private, max-age=3600',
+        // Agent-generated HTML opens in a tab on the API origin — sandbox it
+        // to an opaque origin so its scripts can't reuse the session cookie.
+        ...(a.type === 'html'
+          ? { 'Content-Security-Policy': 'sandbox allow-scripts allow-popups' }
+          : {}),
       },
     });
   }
