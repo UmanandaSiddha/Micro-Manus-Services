@@ -10,6 +10,7 @@ export interface UserRow {
   name: string | null;
   image: string | null;
   credits: number;
+  role: 'user' | 'admin';
 }
 
 const PROVIDER_MAP: Record<string, 'google' | 'github'> = {
@@ -35,23 +36,31 @@ export class AuthService {
     // GitHub accounts can hide their email — fall back to a stable synthetic one.
     const email = decoded.email ?? `${decoded.uid}@users.noreply.firebase`;
 
+    // The ADMIN_EMAIL env account is promoted on every sign-in; existing
+    // admins are never demoted here (role changes otherwise stay manual).
+    const isAdmin =
+      email.toLowerCase() ===
+      (process.env.ADMIN_EMAIL ?? '').trim().toLowerCase();
+
     // Keyed on email: the same person signing in via the other provider
     // re-links instead of violating unique(email).
     const row = await this.db.one<UserRow>(
-      `INSERT INTO users (email, name, image, oauth_provider, oauth_id)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO users (email, name, image, oauth_provider, oauth_id, role)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (email) DO UPDATE SET
          name = COALESCE(EXCLUDED.name, users.name),
          image = COALESCE(EXCLUDED.image, users.image),
          oauth_provider = EXCLUDED.oauth_provider,
-         oauth_id = EXCLUDED.oauth_id
-       RETURNING id, email, name, image, credits`,
+         oauth_id = EXCLUDED.oauth_id,
+         role = CASE WHEN EXCLUDED.role = 'admin' THEN 'admin' ELSE users.role END
+       RETURNING id, email, name, image, credits, role`,
       [
         email,
         decoded.name ?? null,
         decoded.picture ?? null,
         provider,
         decoded.uid,
+        isAdmin ? 'admin' : 'user',
       ],
     );
     return row!;

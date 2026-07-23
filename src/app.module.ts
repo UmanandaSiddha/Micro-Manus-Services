@@ -13,6 +13,7 @@ import { KeysModule } from './keys/keys.module';
 import { MemoryModule } from './memory/memory.module';
 import { ModelsModule } from './models/models.module';
 import { RedisModule } from './redis/redis.module';
+import { AdminModule } from './admin/admin.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { UsersModule } from './users/users.module';
 
@@ -42,6 +43,7 @@ import { UsersModule } from './users/users.module';
     ArtifactsModule,
     MemoryModule,
     UploadsModule,
+    AdminModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

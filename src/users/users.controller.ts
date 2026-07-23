@@ -14,9 +14,11 @@ export class UsersController {
       name: string | null;
       image: string | null;
       credits: number;
-    }>('SELECT id, email, name, image, credits FROM users WHERE id = $1', [
-      userId,
-    ]);
+      role: 'user' | 'admin';
+    }>(
+      'SELECT id, email, name, image, credits, role FROM users WHERE id = $1',
+      [userId],
+    );
 
     const [entitled, key] = await Promise.all([
       this.db.one(

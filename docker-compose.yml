@@ -15,9 +15,10 @@ services:
       - .env
     ports:
       - "4000:4000"
-    # Generated report artifacts persist across restarts.
+    # Generated report artifacts + user uploads persist across restarts.
     volumes:
       - micromanus-artifacts:/app/data/artifacts
+      - micromanus-uploads:/app/public/uploads
     networks:
       - shared-network
     # Liveness via the app's own /health (node has global fetch — no curl in the slim image).
@@ -38,3 +39,4 @@ networks:
 
 volumes:
   micromanus-artifacts:
+  micromanus-uploads:

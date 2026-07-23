@@ -35,7 +35,7 @@ COPY docker-entrypoint.sh ./
 # Run as the unprivileged `node` user. Pre-create the artifacts dir owned by node so the named
 # volume inherits writable ownership (a fresh volume copies the mount point's perms from the image).
 RUN chmod +x docker-entrypoint.sh \
-	&& mkdir -p /app/data/artifacts \
+	&& mkdir -p /app/data/artifacts /app/public/uploads \
 	&& chown -R node:node /app
 USER node
 
