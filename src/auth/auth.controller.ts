@@ -1,13 +1,23 @@
-import { Body, Controller, HttpCode, Post, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { IsString, MinLength } from 'class-validator';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { env } from '../config';
-import { AuthService } from './auth.service';
+import { ACCESS_TTL_MS, AuthService, SESSION_TTL_MS } from './auth.service';
 import { Public } from './public.decorator';
 
-const COOKIE = 'mm_session';
-const WEEK_MS = 7 * 24 * 3600 * 1000;
+const ACCESS_COOKIE = 'mm_access';
+const REFRESH_COOKIE = 'mm_refresh';
+// The refresh cookie only ever travels to auth endpoints.
+const REFRESH_PATH = '/api/auth';
 
 /**
  * Cross-origin cookie policy: 'lax' works while client and API share a site
@@ -15,14 +25,14 @@ const WEEK_MS = 7 * 24 * 3600 * 1000;
  * and API on unrelated domains requires COOKIE_SAMESITE=none, which forces
  * Secure (HTTPS) — browsers reject SameSite=None without it.
  */
-function cookieOptions() {
+function cookieOptions(path = '/') {
   const sameSite = (process.env.COOKIE_SAMESITE ?? 'lax') as
     'lax' | 'none' | 'strict';
   return {
     httpOnly: true,
     sameSite,
     secure: sameSite === 'none' || env('APP_URL').startsWith('https'),
-    path: '/',
+    path,
   };
 }
 
@@ -36,9 +46,20 @@ class SessionDto {
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
+  private setAuthCookies(res: Response, userId: string, refreshCookie: string) {
+    res.cookie(ACCESS_COOKIE, this.auth.signAccess(userId), {
+      ...cookieOptions(),
+      maxAge: ACCESS_TTL_MS,
+    });
+    res.cookie(REFRESH_COOKIE, refreshCookie, {
+      ...cookieOptions(REFRESH_PATH),
+      maxAge: SESSION_TTL_MS,
+    });
+  }
+
   /**
-   * Firebase popup happens client-side (signInWithPopup); the client exchanges
-   * the resulting ID token here for our own httpOnly session cookie.
+   * Firebase popup happens client-side (signInWithPopup) and is identity
+   * verification only — user records, sessions, tokens and cookies are ours.
    */
   @Public()
   @Post('session')
@@ -49,17 +70,47 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const user = await this.auth.loginWithIdToken(dto.idToken);
-    res.cookie(COOKIE, this.auth.signSession(user.id), {
-      ...cookieOptions(),
-      maxAge: WEEK_MS,
-    });
+    this.setAuthCookies(res, user.id, await this.auth.createSession(user.id));
     return { user };
   }
 
+  /** Rotate the refresh token → fresh access cookie. Client calls this on 401. */
+  @Public()
+  @Post('refresh')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const cookieVal = (req.cookies as Record<string, string> | undefined)?.[
+      REFRESH_COOKIE
+    ];
+    res.setHeader('Cache-Control', 'no-store');
+    if (!cookieVal) throw new UnauthorizedException();
+    const { userId, newCookie } = await this.auth.rotateSession(cookieVal);
+    res.cookie(ACCESS_COOKIE, this.auth.signAccess(userId), {
+      ...cookieOptions(),
+      maxAge: ACCESS_TTL_MS,
+    });
+    if (newCookie)
+      res.cookie(REFRESH_COOKIE, newCookie, {
+        ...cookieOptions(REFRESH_PATH),
+        maxAge: SESSION_TTL_MS,
+      });
+    return { ok: true };
+  }
+
+  /** Public so an expired access token can still clear its cookies. */
+  @Public()
   @Post('logout')
   @HttpCode(200)
-  logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie(COOKIE, cookieOptions());
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    await this.auth.revokeSession(
+      (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE],
+    );
+    res.clearCookie(ACCESS_COOKIE, cookieOptions());
+    res.clearCookie(REFRESH_COOKIE, cookieOptions(REFRESH_PATH));
     return { ok: true };
   }
 }

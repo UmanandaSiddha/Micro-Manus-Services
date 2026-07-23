@@ -34,7 +34,7 @@ export class AdminController {
         (SELECT COUNT(*)::int FROM runs)                                           AS runs,
         (SELECT COUNT(*)::int FROM runs WHERE status = 'failed')                   AS failed_runs,
         (SELECT COUNT(*)::int FROM artifacts)                                      AS artifacts,
-        (SELECT COALESCE(SUM(cost_usd), 0)::float FROM runs)                       AS llm_cost_usd,
+        (SELECT COALESCE(SUM(cost_usd), 0)::float FROM usage_events)               AS llm_cost_usd,
         (SELECT COUNT(*)::int FROM credit_ledger WHERE reason = 'purchase')        AS purchases,
         (SELECT COUNT(*)::int FROM credit_ledger WHERE reason = 'coupon')          AS coupon_redemptions,
         (SELECT COALESCE(SUM(delta), 0)::int FROM credit_ledger WHERE delta > 0)   AS credits_granted,
@@ -49,10 +49,9 @@ export class AdminController {
     return this.db.query(
       `SELECT u.id, u.email, u.name, u.image, u.role, u.credits, u.created_at,
               (SELECT COUNT(*)::int FROM threads t WHERE t.user_id = u.id)        AS threads,
-              (SELECT COUNT(*)::int FROM runs r
-                JOIN threads t ON t.id = r.thread_id WHERE t.user_id = u.id)      AS runs,
-              (SELECT COALESCE(SUM(r.cost_usd), 0)::float FROM runs r
-                JOIN threads t ON t.id = r.thread_id WHERE t.user_id = u.id)      AS cost_usd,
+              (SELECT COUNT(*)::int FROM runs r WHERE r.user_id = u.id)           AS runs,
+              (SELECT COALESCE(SUM(e.cost_usd), 0)::float FROM usage_events e
+                WHERE e.user_id = u.id)                                           AS cost_usd,
               (SELECT COUNT(*)::int FROM api_keys k WHERE k.user_id = u.id) > 0   AS has_key
        FROM users u
        WHERE ($1::text IS NULL OR u.email ILIKE $1 OR u.name ILIKE $1)

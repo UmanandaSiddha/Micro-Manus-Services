@@ -1,8 +1,15 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { createHmac, randomBytes } from 'crypto';
 import { DecodedIdToken } from 'firebase-admin/auth';
+import { env } from '../config';
 import { DatabaseService } from '../db/database.service';
 import { FirebaseService } from './firebase.service';
+
+export const ACCESS_TTL_MS = 15 * 60 * 1000;
+export const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
+/** Previous refresh token stays valid this long after rotation (concurrent tabs). */
+const REFRESH_GRACE_MS = 30_000;
 
 export interface UserRow {
   id: string;
@@ -66,7 +73,79 @@ export class AuthService {
     return row!;
   }
 
-  signSession(userId: string): string {
-    return this.jwt.sign({ sub: userId });
+  signAccess(userId: string): string {
+    return this.jwt.sign({ sub: userId }, { expiresIn: '15m' });
+  }
+
+  /** HMAC keyed on the server secret — the raw refresh token never touches the DB. */
+  private hashToken(token: string): string {
+    return createHmac('sha256', env('JWT_SECRET')).update(token).digest('hex');
+  }
+
+  /** Create a session row; the returned cookie value is `${sessionId}.${token}`. */
+  async createSession(userId: string): Promise<string> {
+    const token = randomBytes(32).toString('hex');
+    const row = await this.db.one<{ id: string }>(
+      `INSERT INTO sessions (user_id, refresh_hash, expires_at)
+       VALUES ($1, $2, now() + interval '7 days') RETURNING id`,
+      [userId, this.hashToken(token)],
+    );
+    return `${row!.id}.${token}`;
+  }
+
+  /**
+   * Validate + rotate a refresh cookie. Returns the userId, plus a new cookie
+   * value when the presented token was current (grace-window hits reuse the
+   * newer cookie already in the browser's jar, so no Set-Cookie for them).
+   */
+  async rotateSession(
+    cookieVal: string,
+  ): Promise<{ userId: string; newCookie: string | null }> {
+    const dot = cookieVal.indexOf('.');
+    const sessionId = cookieVal.slice(0, dot);
+    const token = cookieVal.slice(dot + 1);
+    if (!/^[0-9a-f-]{36}$/.test(sessionId) || !token)
+      throw new UnauthorizedException();
+
+    const s = await this.db.one<{
+      user_id: string;
+      refresh_hash: string;
+      prev_hash: string | null;
+      rotated_at: Date | null;
+      expires_at: Date;
+    }>(`SELECT * FROM sessions WHERE id = $1`, [sessionId]);
+    if (!s || s.expires_at.getTime() < Date.now()) {
+      if (s)
+        await this.db.query(`DELETE FROM sessions WHERE id = $1`, [sessionId]);
+      throw new UnauthorizedException('Session expired');
+    }
+
+    const presented = this.hashToken(token);
+    if (presented === s.refresh_hash) {
+      // Normal path: rotate. Old token stays valid for the grace window.
+      const next = randomBytes(32).toString('hex');
+      await this.db.query(
+        `UPDATE sessions SET prev_hash = refresh_hash, rotated_at = now(),
+           refresh_hash = $2, expires_at = now() + interval '7 days'
+         WHERE id = $1`,
+        [sessionId, this.hashToken(next)],
+      );
+      return { userId: s.user_id, newCookie: `${sessionId}.${next}` };
+    }
+    const graceOk =
+      s.prev_hash === presented &&
+      s.rotated_at &&
+      Date.now() - s.rotated_at.getTime() < REFRESH_GRACE_MS;
+    if (graceOk) return { userId: s.user_id, newCookie: null };
+
+    // Unknown token for a live session — possible theft; kill the session.
+    await this.db.query(`DELETE FROM sessions WHERE id = $1`, [sessionId]);
+    throw new UnauthorizedException();
+  }
+
+  async revokeSession(cookieVal: string | undefined): Promise<void> {
+    const sessionId = cookieVal?.split('.')[0];
+    if (sessionId && /^[0-9a-f-]{36}$/.test(sessionId))
+      await this.db.query(`DELETE FROM sessions WHERE id = $1`, [sessionId]);
   }
 }
