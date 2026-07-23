@@ -4,13 +4,14 @@
  * cost_usd is computed at usage-write time, so editing prices here never
  * rewrites history.
  */
-export type KeyProvider = 'openai' | 'anthropic' | 'moonshot' | 'openrouter';
+export type KeyProvider =
+  'openai' | 'anthropic' | 'moonshot' | 'groq' | 'openrouter';
 
 export interface ModelEntry {
   /** Canonical id — stored in usage_events.model_id and threads.model_id. */
   id: string;
   label: string;
-  vendor: 'anthropic' | 'openai' | 'moonshot';
+  vendor: 'anthropic' | 'openai' | 'moonshot' | 'groq';
   contextWindow: number;
   /** Wire ids per key provider. `direct` = the vendor's own API. */
   ids: { direct: string; openrouter: string };
@@ -91,12 +92,33 @@ export const MODELS: ModelEntry[] = [
     ids: { direct: 'kimi-k2.7-code', openrouter: 'moonshotai/kimi-k2.7-code' },
     pricing: { in: 0.82, out: 3.75, cacheRead: 0.16, cacheWrite: 0 },
   },
+  // ── Groq (hosted open models, OpenAI-compatible API) ──────────────────
+  {
+    id: 'llama-3.3-70b',
+    label: 'Llama 3.3 70B (Groq)',
+    vendor: 'groq',
+    contextWindow: 131_072,
+    ids: {
+      direct: 'llama-3.3-70b-versatile',
+      openrouter: 'meta-llama/llama-3.3-70b-instruct',
+    },
+    pricing: { in: 0.59, out: 0.79, cacheRead: 0, cacheWrite: 0 },
+  },
+  {
+    id: 'gpt-oss-120b',
+    label: 'GPT-OSS 120B (Groq)',
+    vendor: 'groq',
+    contextWindow: 131_072,
+    ids: { direct: 'openai/gpt-oss-120b', openrouter: 'openai/gpt-oss-120b' },
+    pricing: { in: 0.15, out: 0.75, cacheRead: 0, cacheWrite: 0 },
+  },
 ];
 
 const VENDOR_TO_KEY_PROVIDER: Record<ModelEntry['vendor'], KeyProvider> = {
   anthropic: 'anthropic',
   openai: 'openai',
   moonshot: 'moonshot',
+  groq: 'groq',
 };
 
 /** The wire id to send for a model given which provider's key is used. */

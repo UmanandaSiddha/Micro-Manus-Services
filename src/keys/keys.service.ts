@@ -10,6 +10,7 @@ import { encrypt, hint } from './crypto';
 export const PROVIDER_BASE_URLS: Record<KeyProvider, string> = {
   openai: 'https://api.openai.com/v1',
   moonshot: 'https://api.moonshot.ai/v1',
+  groq: 'https://api.groq.com/openai/v1',
   openrouter: 'https://openrouter.ai/api/v1',
   anthropic: 'https://api.anthropic.com/v1',
 };
@@ -90,7 +91,9 @@ export class KeysService {
         ? ['anthropic']
         : apiKey.startsWith('sk-or-')
           ? ['openrouter']
-          : ['openai', 'moonshot', 'openrouter', 'anthropic'];
+          : apiKey.startsWith('gsk_')
+            ? ['groq']
+            : ['openai', 'groq', 'moonshot', 'openrouter', 'anthropic'];
 
     const errors: string[] = [];
     for (const p of candidates) {
