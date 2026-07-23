@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import { NextFunction, Request, Response } from 'express';
+import { join } from 'path';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
 import { assertEnv, env } from './config';
@@ -28,6 +29,9 @@ async function bootstrap() {
   // The client calls this API directly (no proxy). Routes live under /api/*;
   // bare /health stays for probes.
   app.setGlobalPrefix('api', { exclude: ['health'] });
+  // Uploaded files served statically at /public/uploads/<id>.<ext> (id-based
+  // names are the access control — unguessable). Not under the /api prefix.
+  app.useStaticAssets(join(process.cwd(), 'public'), { prefix: '/public/' });
   // Cross-origin cookies only work with an explicit origin allowlist +
   // credentials — a wildcard origin silently breaks them.
   const origins = (process.env.CORS_ORIGINS ?? env('APP_URL'))

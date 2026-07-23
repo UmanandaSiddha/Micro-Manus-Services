@@ -14,6 +14,7 @@ import { SUMMARIZE_QUEUE } from '../memory/summarize.processor';
 import { getModel } from '../models/registry';
 import { RedisService } from '../redis/redis.service';
 import { ToolRegistry } from '../tools/tool.registry';
+import { UploadsService } from '../uploads/uploads.service';
 import { UsageService } from '../usage/usage.service';
 import { SYSTEM_PROMPT } from './prompts';
 import { cancelKey, runChannel, RunEvent, RunStep } from './run-events';
@@ -53,6 +54,7 @@ export class AgentProcessor extends WorkerHost {
     private readonly tools: ToolRegistry,
     private readonly usage: UsageService,
     private readonly memory: MemoryService,
+    private readonly uploads: UploadsService,
     @InjectQueue(SUMMARIZE_QUEUE) private readonly summarizeQueue: Queue,
   ) {
     super();
@@ -100,6 +102,10 @@ export class AgentProcessor extends WorkerHost {
         question,
       );
       if (memoryBlock) msgs.unshift({ role: 'user', content: memoryBlock });
+
+      // Attached-file context (docs/uploads) goes right before the question.
+      const fileBlock = await this.uploads.contextBlock(run.thread_id);
+      if (fileBlock) msgs.unshift({ role: 'user', content: fileBlock });
 
       // Resume support: overlay already-completed steps (BullMQ retry).
       // Concurrent tool persistence can append out of index order — sort.

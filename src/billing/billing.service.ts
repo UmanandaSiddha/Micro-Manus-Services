@@ -9,10 +9,15 @@ import Stripe from 'stripe';
 import { env } from '../config';
 import { DatabaseService } from '../db/database.service';
 
-export const CREDITS_PER_PURCHASE = 5;
+// Spec: coupon or $5 payment grants 5 credits, 1 credit per run (refunded on
+// failure). Kept env-overridable so a live demo can hand testers more headroom
+// without a code change — defaults stay spec-compliant (5).
+export const CREDITS_PER_PURCHASE = Number(process.env.CREDITS_PER_PURCHASE ?? 5);
 export const PRICE_CENTS = 500;
 /** Coupon = backend bypass switch, not a Stripe discount. */
-const COUPONS: Record<string, number> = { SID_DRDROID: 5 };
+const COUPONS: Record<string, number> = {
+  SID_DRDROID: Number(process.env.COUPON_CREDITS ?? 5),
+};
 
 @Injectable()
 export class BillingService {

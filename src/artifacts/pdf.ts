@@ -1,29 +1,27 @@
 import { marked } from 'marked';
-import puppeteer, { Browser } from 'puppeteer';
+import puppeteer from 'puppeteer';
 
 /**
- * Markdown → typeset A4 PDF via one shared headless Chromium.
- * The template owns the looks; the agent's markdown owns the content.
+ * Markdown → typeset A4 PDF.
+ *
+ * The browser is launched per render and closed in `finally` — deliberately
+ * NOT kept alive. Puppeteer 25's `headless: true` (new headless) spawns a
+ * VISIBLE empty window on Windows, and a persistent instance leaves it
+ * lingering on the desktop. `headless: 'shell'` uses chrome-headless-shell,
+ * which never opens a window. In Docker we point at the apt `chromium`
+ * (Linux, no display) and use plain headless.
  */
-let browserPromise: Promise<Browser> | null = null;
-
-function getBrowser(): Promise<Browser> {
-  return (browserPromise ??= puppeteer.launch({
-    headless: true,
-    // In the Docker image chromium comes from apt (PUPPETEER_EXECUTABLE_PATH);
-    // locally puppeteer's own download is used.
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-    args: ['--no-sandbox', '--disable-dev-shm-usage'],
-  }));
+function launchArgs() {
+  const systemChromium = process.env.PUPPETEER_EXECUTABLE_PATH;
+  return {
+    headless: (systemChromium ? true : 'shell') as boolean | 'shell',
+    executablePath: systemChromium || undefined,
+    args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+  };
 }
 
-export async function closeBrowser(): Promise<void> {
-  if (browserPromise) {
-    const b = await browserPromise;
-    browserPromise = null;
-    await b.close();
-  }
-}
+/** Kept for the OnModuleDestroy hook — nothing persistent to close now. */
+export async function closeBrowser(): Promise<void> {}
 
 const CSS = `
   * { box-sizing: border-box; }
@@ -67,9 +65,9 @@ export async function renderPdf(
   ${bodyHtml}
 </body></html>`;
 
-  const browser = await getBrowser();
-  const page = await browser.newPage();
+  const browser = await puppeteer.launch(launchArgs());
   try {
+    const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'load' });
     const pdf = await page.pdf({
       format: 'A4',
@@ -82,7 +80,7 @@ export async function renderPdf(
     });
     return Buffer.from(pdf);
   } finally {
-    await page.close();
+    await browser.close(); // no lingering Chromium window
   }
 }
 

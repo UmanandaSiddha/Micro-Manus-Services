@@ -14,11 +14,12 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Queue } from 'bullmq';
-import { IsString, Length } from 'class-validator';
+import { IsArray, IsOptional, IsString, IsUUID, Length } from 'class-validator';
 import { User } from '../auth/user.decorator';
 import { DatabaseService } from '../db/database.service';
 import { getModel } from '../models/registry';
 import { RedisService } from '../redis/redis.service';
+import { UploadsService } from '../uploads/uploads.service';
 import { AGENT_QUEUE } from './agent.processor';
 import { cancelKey } from './run-events';
 
@@ -30,6 +31,11 @@ class SendMessageDto {
   @IsString()
   @Length(1, 100)
   modelId!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  attachmentIds?: string[];
 }
 
 @Controller('chat')
@@ -37,6 +43,7 @@ export class ChatController {
   constructor(
     private readonly db: DatabaseService,
     private readonly redis: RedisService,
+    private readonly uploads: UploadsService,
     @InjectQueue(AGENT_QUEUE) private readonly queue: Queue,
   ) {}
 
@@ -78,7 +85,8 @@ export class ChatController {
         [id],
       ),
     ]);
-    return { thread, messages, runs, artifacts };
+    const uploads = await this.uploads.listForThread(id);
+    return { thread, messages, runs, artifacts, uploads };
   }
 
   @Delete('threads/:id')
@@ -146,6 +154,11 @@ export class ChatController {
       throw e;
     }
     if (!result) throw new HttpException('Out of credits', 402);
+
+    // Link any attachments to this thread so the agent can read their text.
+    if (dto.attachmentIds?.length) {
+      await this.uploads.attachToThread(userId, threadId, dto.attachmentIds);
+    }
 
     await this.queue.add(
       'run',
