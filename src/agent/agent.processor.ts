@@ -310,8 +310,12 @@ export class AgentProcessor extends WorkerHost {
         modelId: run.model_id,
       });
     } catch (e) {
+      // Provider 4xx (bad key, no balance, bad request) is permanent — retrying
+      // just burns time. Only transient errors (5xx, network, timeouts) retry.
+      const status = (e as { status?: number }).status;
+      const permanent = status !== undefined && status >= 400 && status < 500 && status !== 429;
       const attempts = (job.opts.attempts ?? 1) as number;
-      if (job.attemptsMade + 1 < attempts) {
+      if (!permanent && job.attemptsMade + 1 < attempts) {
         this.log.warn(
           `Run ${run.id} attempt ${job.attemptsMade + 1} failed, retrying: ${(e as Error).message}`,
         );

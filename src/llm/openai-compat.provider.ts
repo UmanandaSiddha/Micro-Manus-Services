@@ -21,6 +21,10 @@ export async function streamOpenAiCompatTurn(
 
   const stream = await client.chat.completions.create({
     model: req.model,
+    // Explicit cap: OpenRouter defaults max_tokens to the model maximum and
+    // runs an UPFRONT affordability check against it — low-balance accounts
+    // 402 before a single token. 16k is plenty for a report turn.
+    max_tokens: 16_000,
     messages: messages as unknown as OpenAI.ChatCompletionMessageParam[],
     tools: req.tools.length
       ? req.tools.map((t) => ({
