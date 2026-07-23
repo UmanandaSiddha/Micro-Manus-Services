@@ -18,7 +18,7 @@ Backend of the MicroManus deep-research agent. **Spec: `../docs/backend.md`** (m
 
 ```sh
 npm run db:up            # dbmate against HOST postgres (localhost:5433, db micromanus)
-npm run start:dev        # :4000 — routes under /api, bare /health
+npm run start:dev        # :5000 — routes under /api, bare /health
 npm run test             # jest — keep the few tests that exist green
 ```
 

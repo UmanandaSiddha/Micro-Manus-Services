@@ -40,7 +40,7 @@ RUN chmod +x docker-entrypoint.sh \
 USER node
 
 # Informational only — the actual listen port is read from the PORT env var.
-EXPOSE 4000
+EXPOSE 5000
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["node", "dist/main.js"]

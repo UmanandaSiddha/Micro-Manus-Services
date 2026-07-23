@@ -24,13 +24,13 @@ npm install && npm run db:up  # dbmate migrations
 cp .env.example .env
 
 # backend
-npm run start:dev             # :4000
+npm run start:dev             # :5000
 
 # frontend
 cd ../client && npm install && npm run dev   # :3000
 
 # stripe webhooks (optional, for the card flow)
-stripe listen --forward-to localhost:4000/billing/webhook
+stripe listen --forward-to localhost:5000/billing/webhook
 ```
 
 Auth setup (Firebase): enable Google + GitHub providers in the Firebase console, and put the service-account fields in `server/.env` (`FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY`). The web config lives in `client/lib/firebase.ts` (public by design).

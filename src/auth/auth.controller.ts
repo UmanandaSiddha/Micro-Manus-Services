@@ -21,7 +21,7 @@ const REFRESH_PATH = '/api/auth';
 
 /**
  * Cross-origin cookie policy: 'lax' works while client and API share a site
- * (localhost:3000 → localhost:4000; app.x.com → api.x.com). Deploying client
+ * (localhost:3000 → localhost:5000; app.x.com → api.x.com). Deploying client
  * and API on unrelated domains requires COOKIE_SAMESITE=none, which forces
  * Secure (HTTPS) — browsers reject SameSite=None without it.
  */

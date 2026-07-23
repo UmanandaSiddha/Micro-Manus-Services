@@ -23,27 +23,76 @@ function launchArgs() {
 /** Kept for the OnModuleDestroy hook — nothing persistent to close now. */
 export async function closeBrowser(): Promise<void> {}
 
+// Typeset report stylesheet. Fonts degrade gracefully in the Docker image
+// (fonts-liberation): Georgia→Liberation Serif, Segoe UI→Liberation Sans.
+const SANS = `'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
 const CSS = `
   * { box-sizing: border-box; }
-  body { font-family: Georgia, 'Times New Roman', serif; color: #1c1c1e; margin: 0; font-size: 11pt; line-height: 1.65; }
-  .cover { border-bottom: 3px solid #4f46e5; padding: 0 0 18px; margin-bottom: 28px; }
-  .cover h1 { font-size: 24pt; line-height: 1.25; margin: 0 0 10px; }
-  .cover .meta { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 9pt; color: #6b7280; }
-  h1, h2, h3 { font-family: 'Segoe UI', system-ui, sans-serif; color: #111; line-height: 1.3; }
-  h1 { font-size: 16pt; margin: 26px 0 10px; }
-  h2 { font-size: 13.5pt; margin: 22px 0 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
-  h3 { font-size: 11.5pt; margin: 18px 0 6px; }
-  p { margin: 8px 0; text-align: justify; }
+  html { -webkit-print-color-adjust: exact; }
+  body {
+    font-family: Georgia, 'Times New Roman', serif; color: #1f2430;
+    margin: 0; font-size: 10.5pt; line-height: 1.7;
+    orphans: 3; widows: 3; hyphens: auto;
+  }
+
+  /* ── cover block ─────────────────────────────── */
+  .cover { margin: 0 0 30px; padding: 26px 0 22px; border-bottom: 2.5px solid #4f46e5; }
+  .cover .brand {
+    font-family: ${SANS}; font-size: 8pt; font-weight: 600; letter-spacing: .18em;
+    text-transform: uppercase; color: #4f46e5; margin: 0 0 14px;
+  }
+  .cover h1 {
+    font-family: ${SANS}; font-size: 25pt; font-weight: 650; letter-spacing: -.015em;
+    line-height: 1.18; margin: 0 0 12px; color: #14161f;
+  }
+  .cover .meta { font-family: ${SANS}; font-size: 8.5pt; color: #7b8194; margin: 0; }
+
+  /* ── headings ────────────────────────────────── */
+  h1, h2, h3, h4 { font-family: ${SANS}; color: #14161f; line-height: 1.3; break-after: avoid; }
+  h1 { font-size: 15pt; font-weight: 650; letter-spacing: -.01em; margin: 30px 0 10px; }
+  h2 {
+    font-size: 12.5pt; font-weight: 650; margin: 26px 0 9px; padding-bottom: 5px;
+    border-bottom: 1px solid #e3e5ec;
+  }
+  h2::before { content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 2px;
+    background: linear-gradient(135deg, #6366f1, #22d3ee); margin-right: 8px; }
+  h3 { font-size: 11pt; font-weight: 650; margin: 20px 0 6px; }
+  h4 { font-size: 10pt; font-weight: 650; margin: 16px 0 4px; color: #3c4152; }
+
+  /* ── text ────────────────────────────────────── */
+  p { margin: 8px 0; }
+  strong { color: #14161f; }
   a { color: #4338ca; text-decoration: none; }
-  ul, ol { margin: 8px 0; padding-left: 22px; }
-  li { margin: 4px 0; }
-  blockquote { border-left: 3px solid #c7d2fe; margin: 12px 0; padding: 2px 0 2px 14px; color: #4b5563; font-style: italic; }
-  code { font-family: Consolas, monospace; font-size: 9.5pt; background: #f3f4f6; padding: 1px 4px; border-radius: 3px; }
-  pre { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 12px; overflow-x: hidden; white-space: pre-wrap; }
-  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 10pt; font-family: 'Segoe UI', system-ui, sans-serif; }
-  th, td { border: 1px solid #d1d5db; padding: 6px 9px; text-align: left; }
-  th { background: #eef2ff; }
-  hr { border: none; border-top: 1px solid #e5e7eb; margin: 20px 0; }
+  sup { font-family: ${SANS}; font-size: 7pt; color: #4f46e5; }
+  ul, ol { margin: 8px 0; padding-left: 20px; }
+  li { margin: 4.5px 0; padding-left: 2px; }
+  li::marker { color: #6366f1; }
+
+  blockquote {
+    break-inside: avoid; border-left: 3px solid #818cf8; background: #f6f7ff;
+    margin: 14px 0; padding: 9px 14px; border-radius: 0 6px 6px 0; color: #3d4254;
+  }
+  blockquote p { margin: 4px 0; }
+
+  code { font-family: Consolas, 'Liberation Mono', monospace; font-size: 8.6pt;
+    background: #f1f2f7; padding: 1px 5px; border-radius: 3px; color: #3730a3; }
+  pre { break-inside: avoid; background: #f7f8fb; border: 1px solid #e3e5ec; border-left: 3px solid #c7d2fe;
+    border-radius: 6px; padding: 11px 13px; overflow-x: hidden; white-space: pre-wrap; }
+  pre code { background: none; padding: 0; color: #1f2430; }
+
+  /* ── tables ──────────────────────────────────── */
+  table { break-inside: avoid; border-collapse: collapse; width: 100%; margin: 14px 0;
+    font-size: 9pt; font-family: ${SANS}; }
+  th { background: #eef0ff; color: #2b2f6e; font-weight: 650; text-align: left;
+    padding: 7px 10px; border-bottom: 2px solid #c7d2fe; }
+  td { padding: 6.5px 10px; border-bottom: 1px solid #e9eaf1; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafbff; }
+
+  hr { border: none; border-top: 1px solid #e3e5ec; margin: 24px 0; }
+  img { max-width: 100%; }
+
+  /* Sources: long URLs must wrap, keep the list compact */
+  li a { word-break: break-all; }
 `;
 
 export async function renderPdf(
@@ -59,8 +108,9 @@ export async function renderPdf(
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>${CSS}</style></head>
 <body>
   <div class="cover">
+    <p class="brand">MicroManus · Deep Research</p>
     <h1>${escapeHtml(title)}</h1>
-    <p class="meta">${date} · Generated by MicroManus deep research</p>
+    <p class="meta">${date}</p>
   </div>
   ${bodyHtml}
 </body></html>`;
@@ -72,11 +122,17 @@ export async function renderPdf(
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
-      margin: { top: '18mm', bottom: '18mm', left: '17mm', right: '17mm' },
+      margin: { top: '20mm', bottom: '18mm', left: '17mm', right: '17mm' },
       displayHeaderFooter: true,
-      headerTemplate: '<span></span>',
-      footerTemplate: `<div style="width:100%;font-size:8px;color:#9ca3af;text-align:center;font-family:sans-serif;">
-        <span class="pageNumber"></span> / <span class="totalPages"></span></div>`,
+      // Running document title on every page after the cover-bearing first.
+      headerTemplate: `<div style="width:100%;font-size:7px;color:#9ca3af;font-family:Arial,sans-serif;
+          padding:0 17mm;display:flex;justify-content:space-between;">
+        <span style="max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(title)}</span>
+        <span style="color:#c7d2fe;">●</span></div>`,
+      footerTemplate: `<div style="width:100%;font-size:7.5px;color:#9ca3af;font-family:Arial,sans-serif;
+          padding:0 17mm;display:flex;justify-content:space-between;">
+        <span>MicroManus deep research</span>
+        <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span></div>`,
     });
     return Buffer.from(pdf);
   } finally {

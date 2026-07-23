@@ -67,7 +67,7 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new AllExceptionsFilter());
   app.enableShutdownHooks(); // drain pg pool / BullMQ workers on SIGTERM
-  const port = Number(process.env.PORT ?? 4000);
+  const port = Number(process.env.PORT ?? 5000);
   await app.listen(port);
   new Logger('Bootstrap').log(`Listening on :${port}`);
 }
