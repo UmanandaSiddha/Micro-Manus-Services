@@ -40,8 +40,13 @@ export class AuthService {
     if (!provider)
       throw new UnauthorizedException('Unsupported sign-in provider');
 
-    // GitHub accounts can hide their email — fall back to a stable synthetic one.
-    const email = decoded.email ?? `${decoded.uid}@users.noreply.firebase`;
+    // GitHub can hide the email from the token claim — ask the Firebase user
+    // record before giving up. The synthetic fallback keeps sign-in working
+    // but creates an unlinked account, so it's the last resort.
+    const email =
+      decoded.email ??
+      (await this.firebase.resolveEmail(decoded.uid)) ??
+      `${decoded.uid}@users.noreply.firebase`;
 
     // The ADMIN_EMAIL env account is promoted on every sign-in; existing
     // admins are never demoted here (role changes otherwise stay manual).

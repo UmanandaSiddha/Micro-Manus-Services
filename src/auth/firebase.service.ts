@@ -45,4 +45,18 @@ export class FirebaseService {
       throw new UnauthorizedException('Invalid sign-in token');
     }
   }
+
+  /**
+   * The token claim can omit the email (GitHub privacy settings) — the user
+   * record usually still carries it, directly or on the provider profile.
+   */
+  async resolveEmail(uid: string): Promise<string | null> {
+    if (!this.app) return null;
+    try {
+      const rec = await getAuth(this.app).getUser(uid);
+      return rec.email ?? rec.providerData.find((p) => p.email)?.email ?? null;
+    } catch {
+      return null;
+    }
+  }
 }
