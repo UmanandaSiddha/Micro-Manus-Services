@@ -54,28 +54,108 @@ export class AuthService {
       email.toLowerCase() ===
       (process.env.ADMIN_EMAIL ?? '').trim().toLowerCase();
 
-    // Keyed on email: the same person signing in via the other provider
-    // re-links instead of violating unique(email).
-    const row = await this.db.one<UserRow>(
-      `INSERT INTO users (email, name, image, oauth_provider, oauth_id, role)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (email) DO UPDATE SET
-         name = COALESCE(EXCLUDED.name, users.name),
-         image = COALESCE(EXCLUDED.image, users.image),
-         oauth_provider = EXCLUDED.oauth_provider,
-         oauth_id = EXCLUDED.oauth_id,
-         role = CASE WHEN EXCLUDED.role = 'admin' THEN 'admin' ELSE users.role END
-       RETURNING id, email, name, image, credits, role`,
-      [
-        email,
-        decoded.name ?? null,
-        decoded.picture ?? null,
-        provider,
-        decoded.uid,
-        isAdmin ? 'admin' : 'user',
-      ],
+    const name = decoded.name ?? null;
+    const image = decoded.picture ?? null;
+    const role = isAdmin ? 'admin' : 'user';
+
+    // Auto-heal + upsert in one transaction. Two lookups because a returning
+    // user can be found by their oauth identity OR by email, and those can
+    // point at *different* rows — the case that produced a duplicate before:
+    //   - byIdentity: same (provider, oauth_id) — the row we minted last time,
+    //     possibly under a synthetic @users.noreply.firebase email.
+    //   - byEmail: whoever currently owns this (now real) email.
+    return this.db.tx(async (q) => {
+      const byIdentity = await q.one<{ id: string }>(
+        `SELECT id FROM users WHERE oauth_provider = $1 AND oauth_id = $2`,
+        [provider, decoded.uid],
+      );
+      const byEmail = await q.one<{ id: string }>(
+        `SELECT id FROM users WHERE email = $1`,
+        [email],
+      );
+
+      // Heal: the identity's old (synthetic) account and the real-email account
+      // are different rows → fold the old one into the real one, then the real
+      // one survives and gets re-linked to this identity below.
+      if (byIdentity && byEmail && byIdentity.id !== byEmail.id) {
+        await this.mergeUsers(q, byIdentity.id, byEmail.id);
+      }
+
+      // Survivor: prefer the real-email row; else the identity row (in-place
+      // heal of a still-synthetic account whose email just became real).
+      const targetId = byEmail?.id ?? byIdentity?.id ?? null;
+
+      if (targetId) {
+        const row = await q.one<UserRow>(
+          `UPDATE users SET
+             email = $2,
+             name = COALESCE($3, name),
+             image = COALESCE($4, image),
+             oauth_provider = $5,
+             oauth_id = $6,
+             role = CASE WHEN $7 = 'admin' THEN 'admin' ELSE role END
+           WHERE id = $1
+           RETURNING id, email, name, image, credits, role`,
+          [targetId, email, name, image, provider, decoded.uid, role],
+        );
+        return row!;
+      }
+
+      const row = await q.one<UserRow>(
+        `INSERT INTO users (email, name, image, oauth_provider, oauth_id, role)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, email, name, image, credits, role`,
+        [email, name, image, provider, decoded.uid, role],
+      );
+      return row!;
+    });
+  }
+
+  /**
+   * Fold the `loser` account into `winner`: reassign owned rows, sum credits,
+   * then delete the loser (cascades sessions + any rows left behind by the
+   * conflict-safe moves). Used only during auto-heal of a duplicate account.
+   */
+  private async mergeUsers(
+    q: { query: (sql: string, params: unknown[]) => Promise<unknown> },
+    loser: string,
+    winner: string,
+  ): Promise<void> {
+    // Freely-reassignable owned rows (no per-user uniqueness).
+    for (const t of [
+      'threads',
+      'runs',
+      'usage_events',
+      'uploads',
+      'credit_ledger',
+    ]) {
+      await q.query(`UPDATE ${t} SET user_id = $1 WHERE user_id = $2`, [
+        winner,
+        loser,
+      ]);
+    }
+    // UNIQUE(user_id, provider): move only keys the winner lacks; the rest die
+    // with the loser (winner's own key for that provider wins).
+    await q.query(
+      `UPDATE api_keys k SET user_id = $1 WHERE k.user_id = $2
+         AND NOT EXISTS (
+           SELECT 1 FROM api_keys w WHERE w.user_id = $1 AND w.provider = k.provider)`,
+      [winner, loser],
     );
-    return row!;
+    // PK(user_id, code): move only codes the winner hasn't already redeemed.
+    await q.query(
+      `UPDATE redemptions r SET user_id = $1 WHERE r.user_id = $2
+         AND NOT EXISTS (
+           SELECT 1 FROM redemptions w WHERE w.user_id = $1 AND w.code = r.code)`,
+      [winner, loser],
+    );
+    // Carry the loser's credit balance over before deleting it.
+    await q.query(
+      `UPDATE users SET credits = credits + (SELECT credits FROM users WHERE id = $2)
+       WHERE id = $1`,
+      [winner, loser],
+    );
+    await q.query(`DELETE FROM users WHERE id = $1`, [loser]);
   }
 
   signAccess(userId: string): string {
