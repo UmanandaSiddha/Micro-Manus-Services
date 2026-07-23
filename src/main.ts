@@ -3,6 +3,7 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
+import { NextFunction, Request, Response } from 'express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
 import { assertEnv, env } from './config';
@@ -38,6 +39,19 @@ async function bootstrap() {
     credentials: true,
     allowedHeaders: ['Content-Type'],
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  });
+  // Dev-visible access log (ovlox pattern): status-coded level, skips probes.
+  const httpLog = new Logger('HTTP');
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path === '/health' || req.method === 'OPTIONS') return next();
+    const start = Date.now();
+    res.on('finish', () => {
+      const line = `${req.method} ${req.originalUrl} ${res.statusCode} - ${Date.now() - start}ms`;
+      if (res.statusCode >= 500) httpLog.error(line);
+      else if (res.statusCode >= 400) httpLog.warn(line);
+      else httpLog.log(line);
+    });
+    next();
   });
   app.use(cookieParser());
   app.useGlobalPipes(
