@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, UnauthorizedException } from '@nestjs/common';
 import { User } from '../auth/user.decorator';
 import { DatabaseService } from '../db/database.service';
 
@@ -19,6 +19,9 @@ export class UsersController {
       'SELECT id, email, name, image, credits, role FROM users WHERE id = $1',
       [userId],
     );
+
+    // Valid cookie for a deleted account — treat as signed out.
+    if (!user) throw new UnauthorizedException();
 
     const [entitled, key] = await Promise.all([
       this.db.one(
