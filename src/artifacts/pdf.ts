@@ -10,6 +10,9 @@ let browserPromise: Promise<Browser> | null = null;
 function getBrowser(): Promise<Browser> {
   return (browserPromise ??= puppeteer.launch({
     headless: true,
+    // In the Docker image chromium comes from apt (PUPPETEER_EXECUTABLE_PATH);
+    // locally puppeteer's own download is used.
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
     args: ['--no-sandbox', '--disable-dev-shm-usage'],
   }));
 }

@@ -1,19 +1,29 @@
+# Production compose (VPS). Postgres and Redis run as SEPARATE containers on the
+# external `shared-network` — this stack is the backend only. Locally you don't
+# need this file at all: the app uses the host Postgres + local Redis directly
+# (see .env.example / docs/deployment.md).
+#
+# One-time on the VPS:  docker network create shared-network
 services:
-  postgres:
-    image: pgvector/pgvector:pg16
-    environment:
-      POSTGRES_USER: mm
-      POSTGRES_PASSWORD: mm
-      POSTGRES_DB: micromanus
+  backend:
+    build: .
+    container_name: micromanus-backend
+    restart: unless-stopped
+    # All env (DATABASE_URL, REDIS_URL, JWT_SECRET, FIREBASE_*, STRIPE_*,
+    # TAVILY/VOYAGE keys, CORS_ORIGINS, ...) is read from .env on the VPS —
+    # never committed. See .env.production.example for the full list.
+    env_file:
+      - .env
     ports:
-      - "55432:5432" # host has local postgres instances on 5432 AND 5433
+      - "4000:4000"
     volumes:
-      - pgdata:/var/lib/postgresql/data
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "56379:6379" # host 6379 is held by another project's redis-stack
+      - artifacts:/app/data/artifacts
+    networks:
+      - shared-network
 
 volumes:
-  pgdata:
+  artifacts:
+
+networks:
+  shared-network:
+    external: true

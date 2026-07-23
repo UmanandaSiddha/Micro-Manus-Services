@@ -17,8 +17,9 @@ Backend of the MicroManus deep-research agent. **Spec: `../docs/backend.md`** (m
 ## Dev
 
 ```sh
-npm run start:dev        # :4000 (needs docker compose up + dbmate up first)
+npm run db:up            # dbmate against HOST postgres (localhost:5433, db micromanus)
+npm run start:dev        # :4000 — routes under /api, bare /health
 npm run test             # jest — keep the few tests that exist green
 ```
 
-Env vars: full table in `docs/deployment.md`; startup asserts all required vars.
+Local infra = host Postgres :5433 + local `redis-stack` container :6379 — no app Docker locally. `Dockerfile` + `docker-compose.yml` here are **production-only** (backend container on external `shared-network`; pg/redis are separate containers on the VPS). Env reference: `.env.example` (dev) and `.env.production.example` (prod); startup asserts required vars.
