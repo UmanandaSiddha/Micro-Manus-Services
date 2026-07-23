@@ -19,12 +19,20 @@ export async function streamOpenAiCompatTurn(
   ];
   if (cacheable) markLastUserBlock(messages);
 
+  // Explicit cap: OpenRouter defaults max_tokens to the model maximum and
+  // runs an UPFRONT affordability check against it — low-balance accounts
+  // 402 before a single token. 16k is plenty for a report turn.
+  // Native OpenAI's newer models (gpt-5.x, o-series) reject `max_tokens`
+  // with a 400 and require `max_completion_tokens`; the compat providers
+  // (OpenRouter/Moonshot) still speak `max_tokens`.
+  const cap =
+    req.keyProvider === 'openai'
+      ? { max_completion_tokens: 16_000 }
+      : { max_tokens: 16_000 };
+
   const stream = await client.chat.completions.create({
     model: req.model,
-    // Explicit cap: OpenRouter defaults max_tokens to the model maximum and
-    // runs an UPFRONT affordability check against it — low-balance accounts
-    // 402 before a single token. 16k is plenty for a report turn.
-    max_tokens: 16_000,
+    ...cap,
     messages: messages as unknown as OpenAI.ChatCompletionMessageParam[],
     tools: req.tools.length
       ? req.tools.map((t) => ({
