@@ -18,6 +18,7 @@ export type RunEvent =
         tool: string;
         summary: string;
         durationMs: number;
+        sources?: Array<{ title: string; url: string; domain: string }>;
       };
     }
   | { event: 'token_usage'; data: { stepIndex: number } & NormUsage }
@@ -59,6 +60,9 @@ export type RunStep =
       summary: string;
       durationMs: number;
       artifactId?: string;
+      artifactType?: string;
+      artifactTitle?: string;
+      sources?: Array<{ title: string; url: string; domain: string }>;
       at: string;
     };
 
@@ -88,12 +92,17 @@ export function stepsToEvents(steps: RunStep[]): RunEvent[] {
           tool: s.tool,
           summary: s.summary,
           durationMs: s.durationMs,
+          sources: s.sources,
         },
       });
       if (s.artifactId) {
         events.push({
           event: 'artifact_created',
-          data: { artifactId: s.artifactId, type: 'pdf', title: s.summary },
+          data: {
+            artifactId: s.artifactId,
+            type: s.artifactType ?? 'md',
+            title: s.artifactTitle ?? s.summary,
+          },
         });
       }
     }

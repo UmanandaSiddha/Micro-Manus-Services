@@ -19,4 +19,8 @@ export interface ToolOutput {
   summary: string;
   /** Optional side effect (e.g. created artifact id). */
   artifactId?: string;
+  artifactType?: string;
+  artifactTitle?: string;
+  /** Structured sources for the timeline's clickable chips (web_search). */
+  sources?: Array<{ title: string; url: string; domain: string }>;
 }

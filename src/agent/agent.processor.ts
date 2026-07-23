@@ -233,6 +233,9 @@ export class AgentProcessor extends WorkerHost {
               summary: out.summary,
               durationMs,
               artifactId: out.artifactId,
+              artifactType: out.artifactType,
+              artifactTitle: out.artifactTitle,
+              sources: out.sources,
               at: new Date().toISOString(),
             };
             await this.persistStep(run.id, toolStep);
@@ -245,6 +248,7 @@ export class AgentProcessor extends WorkerHost {
                 tool: tc.name,
                 summary: out.summary,
                 durationMs,
+                sources: out.sources,
               },
             });
             if (out.artifactId) {
@@ -252,8 +256,8 @@ export class AgentProcessor extends WorkerHost {
                 event: 'artifact_created',
                 data: {
                   artifactId: out.artifactId,
-                  type: 'pdf',
-                  title: out.summary,
+                  type: out.artifactType ?? 'md',
+                  title: out.artifactTitle ?? out.summary,
                 },
               });
             }
@@ -313,7 +317,8 @@ export class AgentProcessor extends WorkerHost {
       // Provider 4xx (bad key, no balance, bad request) is permanent — retrying
       // just burns time. Only transient errors (5xx, network, timeouts) retry.
       const status = (e as { status?: number }).status;
-      const permanent = status !== undefined && status >= 400 && status < 500 && status !== 429;
+      const permanent =
+        status !== undefined && status >= 400 && status < 500 && status !== 429;
       const attempts = (job.opts.attempts ?? 1) as number;
       if (!permanent && job.attemptsMade + 1 < attempts) {
         this.log.warn(

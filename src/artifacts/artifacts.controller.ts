@@ -5,16 +5,45 @@ import { ArtifactService } from './artifact.service';
 
 const MIME: Record<string, string> = {
   pdf: 'application/pdf',
-  md: 'text/markdown',
-  html: 'text/html',
-  csv: 'text/csv',
-  json: 'application/json',
-  txt: 'text/plain',
+  md: 'text/markdown; charset=utf-8',
+  html: 'text/html; charset=utf-8',
+  csv: 'text/csv; charset=utf-8',
+  json: 'application/json; charset=utf-8',
+  txt: 'text/plain; charset=utf-8',
 };
 
 @Controller('artifacts')
 export class ArtifactsController {
   constructor(private readonly artifacts: ArtifactService) {}
+
+  /** Metadata + source content — powers the text-based previews (md/csv/json/txt/html). */
+  @Get(':id')
+  async meta(@User() userId: string, @Param('id', ParseUUIDPipe) id: string) {
+    const a = await this.artifacts.getOwned(userId, id);
+    return {
+      id: a.id,
+      type: a.type,
+      title: a.title,
+      content: a.content_md,
+    };
+  }
+
+  /** Inline serve — the PDF/HTML preview iframe fetches this as a blob. */
+  @Get(':id/file')
+  async file(
+    @User() userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const a = await this.artifacts.getOwned(userId, id);
+    res.sendFile(a.absPath, {
+      headers: {
+        'Content-Type': MIME[a.type] ?? 'application/octet-stream',
+        'Content-Disposition': 'inline',
+        'Cache-Control': 'private, max-age=3600',
+      },
+    });
+  }
 
   @Get(':id/download')
   async download(

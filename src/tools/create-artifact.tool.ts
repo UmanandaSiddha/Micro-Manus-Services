@@ -36,7 +36,7 @@ export class CreateArtifactTool implements AgentTool {
     const type = String(args.type ?? 'md') as ArtifactType;
     const title = String(args.title ?? 'Untitled');
     const content = String(args.content ?? '');
-    const { id } = await this.artifacts.create({
+    const created = await this.artifacts.create({
       threadId: ctx.threadId,
       runId: ctx.runId,
       type,
@@ -44,9 +44,11 @@ export class CreateArtifactTool implements AgentTool {
       contentMd: content,
     });
     return {
-      content: `Artifact created (id: ${id}). The user can download "${title}" (${type}) from this chat. Mention that the file is ready — do not repeat its full content in your reply.`,
+      content: `Artifact created (id: ${created.id}). The user can preview and download "${title}" (${type}) in this chat. Mention that the file is ready — do not repeat its full content in your reply.`,
       summary: `${title}`,
-      artifactId: id,
+      artifactId: created.id,
+      artifactType: type,
+      artifactTitle: title,
     };
   }
 }

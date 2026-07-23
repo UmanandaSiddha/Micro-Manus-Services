@@ -3,6 +3,14 @@ import { AgentTool, ToolOutput } from './tool.types';
 
 const PER_HIT_CHARS = 2000;
 
+function safeDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
 @Injectable()
 export class WebSearchTool implements AgentTool {
   readonly def = {
@@ -53,6 +61,14 @@ export class WebSearchTool implements AgentTool {
           .join('\n\n')
       : 'No results.';
 
-    return { content, summary: `${hits.length} results for “${query}”` };
+    return {
+      content,
+      summary: `${hits.length} results for “${query}”`,
+      sources: hits.slice(0, 5).map((r) => ({
+        title: r.title,
+        url: r.url,
+        domain: safeDomain(r.url),
+      })),
+    };
   }
 }
