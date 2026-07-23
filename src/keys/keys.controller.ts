@@ -34,7 +34,12 @@ export class KeysController {
   @Post()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   add(@User() userId: string, @Body() dto: AddKeyDto) {
-    return this.keys.addKey(userId, dto.apiKey.trim(), dto.provider, dto.baseUrl);
+    return this.keys.addKey(
+      userId,
+      dto.apiKey.trim(),
+      dto.provider,
+      dto.baseUrl,
+    );
   }
 
   @Get()

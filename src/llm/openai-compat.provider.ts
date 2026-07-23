@@ -6,11 +6,17 @@ import { ChatMsg, TurnRequest, TurnResult } from './types';
  * For anthropic models routed via OpenRouter, cache_control breakpoints are
  * injected (OpenRouter passes them through; without them cache columns stay 0).
  */
-export async function streamOpenAiCompatTurn(req: TurnRequest): Promise<TurnResult> {
+export async function streamOpenAiCompatTurn(
+  req: TurnRequest,
+): Promise<TurnResult> {
   const client = new OpenAI({ apiKey: req.apiKey, baseURL: req.baseUrl });
-  const cacheable = req.keyProvider === 'openrouter' && req.model.startsWith('anthropic/');
+  const cacheable =
+    req.keyProvider === 'openrouter' && req.model.startsWith('anthropic/');
 
-  const messages = [systemMsg(req.system, cacheable), ...req.messages.map(toWire)];
+  const messages = [
+    systemMsg(req.system, cacheable),
+    ...req.messages.map(toWire),
+  ];
   if (cacheable) markLastUserBlock(messages);
 
   const stream = await client.chat.completions.create({
@@ -19,7 +25,11 @@ export async function streamOpenAiCompatTurn(req: TurnRequest): Promise<TurnResu
     tools: req.tools.length
       ? req.tools.map((t) => ({
           type: 'function' as const,
-          function: { name: t.name, description: t.description, parameters: t.parameters },
+          function: {
+            name: t.name,
+            description: t.description,
+            parameters: t.parameters,
+          },
         }))
       : undefined,
     stream: true,
@@ -65,7 +75,9 @@ function systemMsg(system: string, cacheable: boolean): WireMsg {
   return cacheable
     ? {
         role: 'system',
-        content: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+        content: [
+          { type: 'text', text: system, cache_control: { type: 'ephemeral' } },
+        ],
       }
     : { role: 'system', content: system };
 }
@@ -94,7 +106,11 @@ function markLastUserBlock(messages: WireMsg[]): void {
     const m = messages[i];
     if (m.role === 'user' || m.role === 'tool') {
       m.content = [
-        { type: 'text', text: m.content as string, cache_control: { type: 'ephemeral' } },
+        {
+          type: 'text',
+          text: m.content as string,
+          cache_control: { type: 'ephemeral' },
+        },
       ];
       return;
     }

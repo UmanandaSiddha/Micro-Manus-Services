@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException, OnModuleDestroy } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { mkdir, writeFile } from 'fs/promises';
 import { join, resolve } from 'path';
 import { env } from '../config';
@@ -31,7 +36,8 @@ export class ArtifactService implements OnModuleDestroy {
     contentMd: string;
   }): Promise<{ id: string }> {
     const { type, title, contentMd } = params;
-    if (!EXT[type]) throw new BadRequestException(`Unsupported artifact type: ${type}`);
+    if (!EXT[type])
+      throw new BadRequestException(`Unsupported artifact type: ${type}`);
 
     let bytes: Buffer;
     if (type === 'pdf') {
@@ -46,14 +52,24 @@ export class ArtifactService implements OnModuleDestroy {
     const row = await this.db.one<{ id: string }>(
       `INSERT INTO artifacts (thread_id, run_id, type, title, file_path, content_md, size_bytes)
        VALUES ($1,$2,$3,$4,'',$5,$6) RETURNING id`,
-      [params.threadId, params.runId, type, title.slice(0, 200), contentMd, bytes.length],
+      [
+        params.threadId,
+        params.runId,
+        type,
+        title.slice(0, 200),
+        contentMd,
+        bytes.length,
+      ],
     );
     const id = row!.id;
 
     const relPath = join(params.threadId, `${id}.${EXT[type]}`);
     await mkdir(join(this.dir(), params.threadId), { recursive: true });
     await writeFile(join(this.dir(), relPath), bytes);
-    await this.db.query(`UPDATE artifacts SET file_path = $2 WHERE id = $1`, [id, relPath]);
+    await this.db.query(`UPDATE artifacts SET file_path = $2 WHERE id = $1`, [
+      id,
+      relPath,
+    ]);
 
     return { id };
   }

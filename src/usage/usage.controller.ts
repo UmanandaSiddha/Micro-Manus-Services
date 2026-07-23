@@ -35,7 +35,12 @@ export class UsageController {
         `SELECT id, title FROM threads WHERE user_id = $1`,
         [userId],
       ),
-      this.db.query<{ thread_id: string; run_id: string; cost_usd: string; at: string }>(
+      this.db.query<{
+        thread_id: string;
+        run_id: string;
+        cost_usd: string;
+        at: string;
+      }>(
         `SELECT thread_id, run_id, SUM(cost_usd) AS cost_usd, MIN(created_at) AS at
          FROM usage_events WHERE user_id = $1 AND run_id IS NOT NULL
          GROUP BY thread_id, run_id ORDER BY at`,
@@ -90,18 +95,23 @@ export class UsageController {
         // What caching saved: reads billed at cacheRead instead of in,
         // minus the write premium paid over plain input.
         t.cacheSavedUsd +=
-          (cr * (m.pricing.in - m.pricing.cacheRead) - cw * (m.pricing.cacheWrite - m.pricing.in)) /
+          (cr * (m.pricing.in - m.pricing.cacheRead) -
+            cw * (m.pricing.cacheWrite - m.pricing.in)) /
           1_000_000;
       }
       threadsMap.set(g.thread_id, t);
     }
     for (const r of perRun) {
-      threadsMap
-        .get(r.thread_id)
-        ?.perRun.push({ runId: r.run_id, costUsd: Number(r.cost_usd), at: r.at });
+      threadsMap.get(r.thread_id)?.perRun.push({
+        runId: r.run_id,
+        costUsd: Number(r.cost_usd),
+        at: r.at,
+      });
     }
 
-    const threads = [...threadsMap.values()].sort((a, b) => b.costUsd - a.costUsd);
+    const threads = [...threadsMap.values()].sort(
+      (a, b) => b.costUsd - a.costUsd,
+    );
     const totals = threads.reduce(
       (a, t) => ({
         costUsd: a.costUsd + t.costUsd,
@@ -112,7 +122,15 @@ export class UsageController {
         cacheWriteTokens: a.cacheWriteTokens + t.cacheWriteTokens,
         runs: a.runs + t.runs,
       }),
-      { costUsd: 0, cacheSavedUsd: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, runs: 0 },
+      {
+        costUsd: 0,
+        cacheSavedUsd: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        runs: 0,
+      },
     );
 
     // What-if: same total token mix priced on every registry model.

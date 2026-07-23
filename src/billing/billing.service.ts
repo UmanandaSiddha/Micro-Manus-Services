@@ -52,14 +52,21 @@ export class BillingService {
   /** Idempotent: stripe_events gate makes webhook retries a no-op. */
   async handleWebhook(rawBody: Buffer, signature: string): Promise<void> {
     const whSecret = process.env.STRIPE_WEBHOOK_SECRET;
-    if (!whSecret) throw new ServiceUnavailableException('Webhook secret not configured');
-    const event = this.stripe.webhooks.constructEvent(rawBody, signature, whSecret);
+    if (!whSecret)
+      throw new ServiceUnavailableException('Webhook secret not configured');
+    const event = this.stripe.webhooks.constructEvent(
+      rawBody,
+      signature,
+      whSecret,
+    );
 
     if (event.type !== 'checkout.session.completed') return;
     const session = event.data.object;
     const userId = session.metadata?.userId;
     if (!userId) {
-      this.log.warn(`checkout.session.completed without userId (${session.id})`);
+      this.log.warn(
+        `checkout.session.completed without userId (${session.id})`,
+      );
       return;
     }
 
@@ -80,7 +87,9 @@ export class BillingService {
         [userId, CREDITS_PER_PURCHASE, session.id],
       );
     });
-    this.log.log(`Granted ${CREDITS_PER_PURCHASE} credits to ${userId} (purchase)`);
+    this.log.log(
+      `Granted ${CREDITS_PER_PURCHASE} credits to ${userId} (purchase)`,
+    );
   }
 
   async redeem(userId: string, code: string): Promise<{ credits: number }> {
@@ -109,7 +118,10 @@ export class BillingService {
 
   async credits(userId: string) {
     const [user, ledger] = await Promise.all([
-      this.db.one<{ credits: number }>(`SELECT credits FROM users WHERE id = $1`, [userId]),
+      this.db.one<{ credits: number }>(
+        `SELECT credits FROM users WHERE id = $1`,
+        [userId],
+      ),
       this.db.query(
         `SELECT delta, reason, ref_id, created_at FROM credit_ledger
          WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50`,

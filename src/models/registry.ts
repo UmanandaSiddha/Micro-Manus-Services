@@ -43,7 +43,10 @@ export const MODELS: ModelEntry[] = [
     label: 'Claude Haiku 4.5',
     vendor: 'anthropic',
     contextWindow: 200_000,
-    ids: { direct: 'claude-haiku-4-5', openrouter: 'anthropic/claude-haiku-4.5' },
+    ids: {
+      direct: 'claude-haiku-4-5',
+      openrouter: 'anthropic/claude-haiku-4.5',
+    },
     pricing: { in: 1.0, out: 5.0, cacheRead: 0.1, cacheWrite: 1.25 },
   },
   // ── OpenAI ────────────────────────────────────────────────────────────
@@ -108,7 +111,7 @@ export function wireId(model: ModelEntry, keyProvider: KeyProvider): string {
  * our canonical ids exactly, and intersecting there would leave the picker
  * empty for a perfectly valid key. The key already proved itself at probe time.
  */
-export function modelsForKey(provider: KeyProvider, _reportedIds: string[]): ModelEntry[] {
+export function modelsForKey(provider: KeyProvider): ModelEntry[] {
   if (provider === 'openrouter') return MODELS;
   return MODELS.filter((m) => VENDOR_TO_KEY_PROVIDER[m.vendor] === provider);
 }

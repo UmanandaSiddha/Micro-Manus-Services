@@ -13,7 +13,9 @@ process.on('unhandledRejection', (reason) => {
   new Logger('Process').error(`Unhandled rejection: ${String(reason)}`);
 });
 process.on('uncaughtException', (err) => {
-  new Logger('Process').error(`Uncaught exception: ${err.stack ?? err.message}`);
+  new Logger('Process').error(
+    `Uncaught exception: ${err.stack ?? err.message}`,
+  );
   process.exit(1);
 });
 

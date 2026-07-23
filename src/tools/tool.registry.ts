@@ -16,7 +16,12 @@ export class ToolRegistry {
     createArtifact: CreateArtifactTool,
     readArtifact: ReadArtifactTool,
   ) {
-    for (const t of [webSearch, fetchUrl, createArtifact, readArtifact] as AgentTool[])
+    for (const t of [
+      webSearch,
+      fetchUrl,
+      createArtifact,
+      readArtifact,
+    ] as AgentTool[])
       this.register(t);
   }
 
@@ -26,23 +31,39 @@ export class ToolRegistry {
 
   defs(): ToolDef[] {
     // Deterministic order — tool order is part of the prompt-cache prefix
-    return [...this.tools.values()].map((t) => t.def).sort((a, b) => a.name.localeCompare(b.name));
+    return [...this.tools.values()]
+      .map((t) => t.def)
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  async execute(name: string, argsJson: string, ctx: ToolCtx): Promise<ToolOutput> {
+  async execute(
+    name: string,
+    argsJson: string,
+    ctx: ToolCtx,
+  ): Promise<ToolOutput> {
     const tool = this.tools.get(name);
-    if (!tool) return { content: `Unknown tool: ${name}`, summary: `unknown tool ${name}` };
+    if (!tool)
+      return {
+        content: `Unknown tool: ${name}`,
+        summary: `unknown tool ${name}`,
+      };
     let args: Record<string, unknown>;
     try {
       args = JSON.parse(argsJson || '{}') as Record<string, unknown>;
     } catch {
-      return { content: 'Invalid tool arguments (bad JSON).', summary: 'bad tool args' };
+      return {
+        content: 'Invalid tool arguments (bad JSON).',
+        summary: 'bad tool args',
+      };
     }
     try {
       return await tool.execute(args, ctx);
     } catch (e) {
       const msg = (e as Error).message ?? 'tool failed';
-      return { content: `Tool error: ${msg}`, summary: `error: ${msg.slice(0, 80)}` };
+      return {
+        content: `Tool error: ${msg}`,
+        summary: `error: ${msg.slice(0, 80)}`,
+      };
     }
   }
 }

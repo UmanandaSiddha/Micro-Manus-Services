@@ -20,8 +20,14 @@ export class ReadArtifactTool implements AgentTool {
     },
   };
 
-  async execute(args: Record<string, unknown>, ctx: ToolCtx): Promise<ToolOutput> {
-    const a = await this.artifacts.getOwned(ctx.userId, String(args.artifactId ?? ''));
+  async execute(
+    args: Record<string, unknown>,
+    ctx: ToolCtx,
+  ): Promise<ToolOutput> {
+    const a = await this.artifacts.getOwned(
+      ctx.userId,
+      String(args.artifactId ?? ''),
+    );
     return {
       content: a.content_md ?? '(no stored content)',
       summary: `Read “${a.title}”`,

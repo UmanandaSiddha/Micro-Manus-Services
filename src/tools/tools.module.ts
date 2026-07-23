@@ -8,7 +8,13 @@ import { WebSearchTool } from './web-search.tool';
 
 @Module({
   imports: [ArtifactsModule],
-  providers: [ToolRegistry, WebSearchTool, FetchUrlTool, CreateArtifactTool, ReadArtifactTool],
+  providers: [
+    ToolRegistry,
+    WebSearchTool,
+    FetchUrlTool,
+    CreateArtifactTool,
+    ReadArtifactTool,
+  ],
   exports: [ToolRegistry],
 })
 export class ToolsModule {}

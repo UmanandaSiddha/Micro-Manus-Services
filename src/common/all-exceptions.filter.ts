@@ -30,7 +30,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const body = exception.getResponse();
-      message = typeof body === 'string' ? body : ((body as { message?: unknown }).message ?? body);
+      message =
+        typeof body === 'string'
+          ? body
+          : ((body as { message?: unknown }).message ?? body);
     } else if (isPgError(exception)) {
       [status, message] = mapPgError(exception.code);
     } else if (process.env.NODE_ENV !== 'production') {
@@ -50,7 +53,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
 }
 
 function isPgError(e: unknown): e is { code: string } {
-  return typeof (e as { code?: unknown })?.code === 'string' && !(e instanceof HttpException);
+  return (
+    typeof (e as { code?: unknown })?.code === 'string' &&
+    !(e instanceof HttpException)
+  );
 }
 
 function mapPgError(code: string): [number, string] {

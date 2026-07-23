@@ -21,13 +21,21 @@ export class WebSearchTool implements AgentTool {
 
   async execute(args: Record<string, unknown>): Promise<ToolOutput> {
     const apiKey = process.env.TAVILY_API_KEY;
-    if (!apiKey) throw new ServiceUnavailableException('Search is not configured (TAVILY_API_KEY)');
+    if (!apiKey)
+      throw new ServiceUnavailableException(
+        'Search is not configured (TAVILY_API_KEY)',
+      );
     const query = String(args.query ?? '').slice(0, 400);
 
     const res = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ api_key: apiKey, query, max_results: 6, include_answer: false }),
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        max_results: 6,
+        include_answer: false,
+      }),
       signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) throw new Error(`Tavily HTTP ${res.status}`);

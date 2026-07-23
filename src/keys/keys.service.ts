@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { DatabaseService } from '../db/database.service';
 import { KeyProvider } from '../models/registry';
 import { encrypt, hint } from './crypto';
@@ -20,7 +24,12 @@ interface ProbeResult {
 export class KeysService {
   constructor(private readonly db: DatabaseService) {}
 
-  async addKey(userId: string, apiKey: string, provider?: KeyProvider, baseUrl?: string) {
+  async addKey(
+    userId: string,
+    apiKey: string,
+    provider?: KeyProvider,
+    baseUrl?: string,
+  ) {
     const probe = await this.probe(apiKey, provider, baseUrl);
     const row = await this.db.one<{ id: string }>(
       `INSERT INTO api_keys (user_id, provider, base_url, key_ciphertext, key_hint, models)
@@ -32,9 +41,21 @@ export class KeysService {
          models = EXCLUDED.models,
          created_at = now()
        RETURNING id`,
-      [userId, probe.provider, probe.baseUrl, encrypt(apiKey), hint(apiKey), JSON.stringify(probe.models)],
+      [
+        userId,
+        probe.provider,
+        probe.baseUrl,
+        encrypt(apiKey),
+        hint(apiKey),
+        JSON.stringify(probe.models),
+      ],
     );
-    return { id: row!.id, provider: probe.provider, keyHint: hint(apiKey), models: probe.models };
+    return {
+      id: row!.id,
+      provider: probe.provider,
+      keyHint: hint(apiKey),
+      models: probe.models,
+    };
   }
 
   async listKeys(userId: string) {
@@ -58,7 +79,11 @@ export class KeysService {
    * Validate the key against the provider and learn which models it reaches.
    * Detection order: explicit provider → key-prefix heuristic → probe cascade.
    */
-  private async probe(apiKey: string, provider?: KeyProvider, baseUrl?: string): Promise<ProbeResult> {
+  private async probe(
+    apiKey: string,
+    provider?: KeyProvider,
+    baseUrl?: string,
+  ): Promise<ProbeResult> {
     const candidates: KeyProvider[] = provider
       ? [provider]
       : apiKey.startsWith('sk-ant-')
@@ -69,7 +94,8 @@ export class KeysService {
 
     const errors: string[] = [];
     for (const p of candidates) {
-      const base = baseUrl && candidates.length === 1 ? baseUrl : PROVIDER_BASE_URLS[p];
+      const base =
+        baseUrl && candidates.length === 1 ? baseUrl : PROVIDER_BASE_URLS[p];
       try {
         const models = await this.fetchModels(p, base, apiKey);
         return { provider: p, baseUrl: base, models };
@@ -82,7 +108,11 @@ export class KeysService {
     );
   }
 
-  private async fetchModels(p: KeyProvider, base: string, apiKey: string): Promise<string[]> {
+  private async fetchModels(
+    p: KeyProvider,
+    base: string,
+    apiKey: string,
+  ): Promise<string[]> {
     // OpenRouter's /models is PUBLIC — it would "validate" any key. Its /key
     // endpoint is authenticated; a valid OR key unlocks the whole registry,
     // so no model list is needed.
@@ -101,7 +131,10 @@ export class KeysService {
         ? { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
         : { Authorization: `Bearer ${apiKey}` };
 
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(url, {
+      headers,
+      signal: AbortSignal.timeout(10_000),
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const body = (await res.json()) as { data?: Array<{ id: string }> };
     return (body.data ?? []).map((m) => m.id);

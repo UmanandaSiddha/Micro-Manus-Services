@@ -6,7 +6,9 @@ import { ChatMsg, TurnRequest, TurnResult } from './types';
  * cache_control — without explicit breakpoints the cache token columns stay
  * zero forever (a graded requirement). See docs/agent.md.
  */
-export async function streamAnthropicTurn(req: TurnRequest): Promise<TurnResult> {
+export async function streamAnthropicTurn(
+  req: TurnRequest,
+): Promise<TurnResult> {
   const client = new Anthropic({ apiKey: req.apiKey });
 
   const stream = client.messages.stream({
@@ -34,7 +36,11 @@ export async function streamAnthropicTurn(req: TurnRequest): Promise<TurnResult>
   for (const block of final.content) {
     if (block.type === 'text') text += block.text;
     else if (block.type === 'tool_use') {
-      toolCalls.push({ id: block.id, name: block.name, args: JSON.stringify(block.input) });
+      toolCalls.push({
+        id: block.id,
+        name: block.name,
+        args: JSON.stringify(block.input),
+      });
     }
   }
 
@@ -66,7 +72,11 @@ function toAnthropicMessages(messages: ChatMsg[]): AMsg[] {
         content: m.content,
       };
       const last = out[out.length - 1];
-      if (last?.role === 'user' && Array.isArray(last.content) && last.content[0]?.type === 'tool_result') {
+      if (
+        last?.role === 'user' &&
+        Array.isArray(last.content) &&
+        last.content[0]?.type === 'tool_result'
+      ) {
         (last.content as Anthropic.ToolResultBlockParam[]).push(block);
       } else {
         out.push({ role: 'user', content: [block] });
@@ -96,10 +106,16 @@ function withCacheBreakpoint(messages: AMsg[]): AMsg[] {
   if (!last) return messages;
   if (typeof last.content === 'string') {
     last.content = [
-      { type: 'text', text: last.content, cache_control: { type: 'ephemeral' } },
+      {
+        type: 'text',
+        text: last.content,
+        cache_control: { type: 'ephemeral' },
+      },
     ];
   } else if (Array.isArray(last.content) && last.content.length) {
-    const block = last.content[last.content.length - 1] as { cache_control?: unknown };
+    const block = last.content[last.content.length - 1] as {
+      cache_control?: unknown;
+    };
     block.cache_control = { type: 'ephemeral' };
   }
   return messages;

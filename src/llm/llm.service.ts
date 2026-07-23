@@ -34,7 +34,9 @@ export class LlmService {
     );
     const row = rows[0];
     if (!row) {
-      throw new NotFoundException(`No API key stored that can run ${model.label}`);
+      throw new NotFoundException(
+        `No API key stored that can run ${model.label}`,
+      );
     }
     return {
       provider: row.provider,

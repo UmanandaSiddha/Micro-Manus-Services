@@ -17,15 +17,22 @@ export class FirebaseService {
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
     if (!projectId || !clientEmail || !privateKey) {
-      this.log.warn('Firebase env vars missing — sign-in will fail until configured');
+      this.log.warn(
+        'Firebase env vars missing — sign-in will fail until configured',
+      );
       return;
     }
     try {
       this.app =
-        getApps()[0] ?? initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+        getApps()[0] ??
+        initializeApp({
+          credential: cert({ projectId, clientEmail, privateKey }),
+        });
     } catch (e) {
       // Malformed key must not take the whole app down — only sign-in.
-      this.log.warn(`Firebase init failed — sign-in disabled: ${(e as Error).message}`);
+      this.log.warn(
+        `Firebase init failed — sign-in disabled: ${(e as Error).message}`,
+      );
     }
   }
 

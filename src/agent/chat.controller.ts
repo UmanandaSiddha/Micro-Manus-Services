@@ -82,7 +82,10 @@ export class ChatController {
   }
 
   @Delete('threads/:id')
-  async deleteThread(@User() userId: string, @Param('id', ParseUUIDPipe) id: string) {
+  async deleteThread(
+    @User() userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     await this.assertThread(userId, id);
     await this.db.query(`DELETE FROM threads WHERE id = $1`, [id]);
     return { ok: true };
@@ -97,13 +100,17 @@ export class ChatController {
     @Body() dto: SendMessageDto,
   ) {
     await this.assertThread(userId, threadId);
-    if (!getModel(dto.modelId)) throw new NotFoundException(`Unknown model ${dto.modelId}`);
+    if (!getModel(dto.modelId))
+      throw new NotFoundException(`Unknown model ${dto.modelId}`);
 
     const running = await this.db.one(
       `SELECT 1 FROM runs WHERE thread_id = $1 AND status = 'running' LIMIT 1`,
       [threadId],
     );
-    if (running) throw new ForbiddenException('A run is already in progress on this thread');
+    if (running)
+      throw new ForbiddenException(
+        'A run is already in progress on this thread',
+      );
 
     // Atomic credit deduction — the load-bearing pattern from docs/database.md.
     // The whole thing is one tx: if the run INSERT hits the one-running-per-
@@ -132,18 +139,27 @@ export class ChatController {
       });
     } catch (e) {
       if ((e as { code?: string }).code === '23505') {
-        throw new ForbiddenException('A run is already in progress on this thread');
+        throw new ForbiddenException(
+          'A run is already in progress on this thread',
+        );
       }
       throw e;
     }
     if (!result) throw new HttpException('Out of credits', 402);
 
-    await this.queue.add('run', { runId: result.runId }, { attempts: 2, backoff: { type: 'fixed', delay: 2000 } });
+    await this.queue.add(
+      'run',
+      { runId: result.runId },
+      { attempts: 2, backoff: { type: 'fixed', delay: 2000 } },
+    );
     return result;
   }
 
   @Post('runs/:id/cancel')
-  async cancel(@User() userId: string, @Param('id', ParseUUIDPipe) runId: string) {
+  async cancel(
+    @User() userId: string,
+    @Param('id', ParseUUIDPipe) runId: string,
+  ) {
     const run = await this.db.one<{ user_id: string }>(
       `SELECT user_id FROM runs WHERE id = $1`,
       [runId],
@@ -154,11 +170,14 @@ export class ChatController {
   }
 
   private async assertThread(userId: string, id: string) {
-    const thread = await this.db.one<{ id: string; user_id: string; title: string; model_id: string | null }>(
-      `SELECT id, user_id, title, model_id FROM threads WHERE id = $1`,
-      [id],
-    );
-    if (!thread || thread.user_id !== userId) throw new NotFoundException('Thread not found');
+    const thread = await this.db.one<{
+      id: string;
+      user_id: string;
+      title: string;
+      model_id: string | null;
+    }>(`SELECT id, user_id, title, model_id FROM threads WHERE id = $1`, [id]);
+    if (!thread || thread.user_id !== userId)
+      throw new NotFoundException('Thread not found');
     return thread;
   }
 }

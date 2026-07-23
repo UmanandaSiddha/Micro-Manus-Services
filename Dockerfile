@@ -15,14 +15,9 @@ RUN npm run build
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 
-# dbmate for migrations on container start + chromium for Puppeteer PDF rendering.
-# dbmate version pinned deliberately — bump when you want a newer release.
+# Chromium for Puppeteer PDF rendering (agent report artifacts).
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends curl ca-certificates chromium fonts-liberation \
-	&& curl -fsSL -o /usr/local/bin/dbmate \
-	https://github.com/amacneil/dbmate/releases/download/v2.27.0/dbmate-linux-amd64 \
-	&& chmod +x /usr/local/bin/dbmate \
-	&& apt-get purge -y --auto-remove curl \
+	&& apt-get install -y --no-install-recommends chromium fonts-liberation \
 	&& rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production \
@@ -30,15 +25,21 @@ ENV NODE_ENV=production \
 	PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+# Prod deps include dbmate (used for migrations on container start); drop the cache to slim the image.
+RUN npm ci --omit=dev && npm cache clean --force
 
-# Compiled app + migration files + entrypoint
+# Compiled app + migration files + entrypoint.
 COPY --from=builder /app/dist ./dist
 COPY db ./db
 COPY docker-entrypoint.sh ./
-RUN chmod +x docker-entrypoint.sh
+# Run as the unprivileged `node` user. Pre-create the artifacts dir owned by node so the named
+# volume inherits writable ownership (a fresh volume copies the mount point's perms from the image).
+RUN chmod +x docker-entrypoint.sh \
+	&& mkdir -p /app/data/artifacts \
+	&& chown -R node:node /app
+USER node
 
-# Informational only — actual listen port is read from the PORT env var.
+# Informational only — the actual listen port is read from the PORT env var.
 EXPOSE 4000
 
 ENTRYPOINT ["./docker-entrypoint.sh"]

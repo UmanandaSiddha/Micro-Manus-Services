@@ -19,11 +19,15 @@ export class MemoryService {
    * summaries / retrieval finds nothing relevant. RAG augments context — it
    * never replaces recency (docs/memory.md).
    */
-  async retrievalBlock(threadId: string, question: string): Promise<string | null> {
+  async retrievalBlock(
+    threadId: string,
+    question: string,
+  ): Promise<string | null> {
     if (!memoryEnabled()) return null;
-    const any = await this.db.one(`SELECT 1 FROM summaries WHERE thread_id = $1 LIMIT 1`, [
-      threadId,
-    ]);
+    const any = await this.db.one(
+      `SELECT 1 FROM summaries WHERE thread_id = $1 LIMIT 1`,
+      [threadId],
+    );
     if (!any) return null;
 
     try {

@@ -1,29 +1,40 @@
-# Production compose (VPS). Postgres and Redis run as SEPARATE containers on the
-# external `shared-network` — this stack is the backend only. Locally you don't
-# need this file at all: the app uses the host Postgres + local Redis directly
-# (see .env.example / docs/deployment.md).
+# Production compose (VPS). Postgres and Redis run as SEPARATE shared containers on the
+# external `shared-network` — this stack is the backend only, and the VPS never builds:
+# CI builds + pushes the image to GHCR; set BACKEND_IMAGE in .env to the pushed tag.
 #
 # One-time on the VPS:  docker network create shared-network
 services:
   backend:
-    build: .
+    image: ${BACKEND_IMAGE:?set BACKEND_IMAGE in .env to your GHCR image, e.g. ghcr.io/owner/micromanus-server:latest}
     container_name: micromanus-backend
     restart: unless-stopped
-    # All env (DATABASE_URL, REDIS_URL, JWT_SECRET, FIREBASE_*, STRIPE_*,
-    # TAVILY/VOYAGE keys, CORS_ORIGINS, ...) is read from .env on the VPS —
-    # never committed. See .env.production.example for the full list.
+    # All env (DATABASE_URL, REDIS_URL, JWT_SECRET, FIREBASE_*, STRIPE_*, TAVILY/VOYAGE
+    # keys, CORS_ORIGINS, ...) is read from .env on the VPS — never committed.
+    # See .env.production.example for the full list.
     env_file:
       - .env
     ports:
       - "4000:4000"
+    # Generated report artifacts persist across restarts.
     volumes:
-      - artifacts:/app/data/artifacts
+      - micromanus-artifacts:/app/data/artifacts
     networks:
       - shared-network
-
-volumes:
-  artifacts:
+    # Liveness via the app's own /health (node has global fetch — no curl in the slim image).
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:'+(process.env.PORT||4000)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
 networks:
   shared-network:
     external: true
+
+volumes:
+  micromanus-artifacts:

@@ -15,7 +15,10 @@ export class CreateArtifactTool implements AgentTool {
     parameters: {
       type: 'object',
       properties: {
-        type: { type: 'string', enum: ['pdf', 'md', 'html', 'csv', 'json', 'txt'] },
+        type: {
+          type: 'string',
+          enum: ['pdf', 'md', 'html', 'csv', 'json', 'txt'],
+        },
         title: { type: 'string', description: 'Human-readable document title' },
         content: {
           type: 'string',
@@ -26,7 +29,10 @@ export class CreateArtifactTool implements AgentTool {
     },
   };
 
-  async execute(args: Record<string, unknown>, ctx: ToolCtx): Promise<ToolOutput> {
+  async execute(
+    args: Record<string, unknown>,
+    ctx: ToolCtx,
+  ): Promise<ToolOutput> {
     const type = String(args.type ?? 'md') as ArtifactType;
     const title = String(args.title ?? 'Untitled');
     const content = String(args.content ?? '');

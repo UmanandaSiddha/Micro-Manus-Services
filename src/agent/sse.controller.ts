@@ -1,4 +1,11 @@
-import { Controller, NotFoundException, Param, ParseUUIDPipe, Req, Res } from '@nestjs/common';
+import {
+  Controller,
+  NotFoundException,
+  Param,
+  ParseUUIDPipe,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { Get } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { User } from '../auth/user.decorator';
@@ -31,7 +38,10 @@ export class SseController {
       model_id: string;
       status: string;
       error: string | null;
-    }>(`SELECT id, user_id, thread_id, model_id, status, error FROM runs WHERE id = $1`, [runId]);
+    }>(
+      `SELECT id, user_id, thread_id, model_id, status, error FROM runs WHERE id = $1`,
+      [runId],
+    );
     if (!run || run.user_id !== userId) throw new NotFoundException();
 
     res.set({
@@ -86,7 +96,10 @@ export class SseController {
     );
     if (fresh?.status === 'done') {
       const [credits, cost] = await Promise.all([
-        this.db.one<{ credits: number }>(`SELECT credits FROM users WHERE id = $1`, [userId]),
+        this.db.one<{ credits: number }>(
+          `SELECT credits FROM users WHERE id = $1`,
+          [userId],
+        ),
         this.db.one<{ sum: string | null }>(
           `SELECT SUM(cost_usd) AS sum FROM usage_events WHERE run_id = $1`,
           [runId],
@@ -94,7 +107,11 @@ export class SseController {
       ]);
       send({
         event: 'run_completed',
-        data: { runId, costUsd: Number(cost?.sum ?? 0), credits: credits?.credits ?? 0 },
+        data: {
+          runId,
+          costUsd: Number(cost?.sum ?? 0),
+          credits: credits?.credits ?? 0,
+        },
       });
       cleanup();
     } else if (fresh?.status === 'failed') {
@@ -104,7 +121,11 @@ export class SseController {
       );
       send({
         event: 'run_failed',
-        data: { runId, error: fresh.error ?? 'failed', creditRefunded: !!refunded },
+        data: {
+          runId,
+          error: fresh.error ?? 'failed',
+          creditRefunded: !!refunded,
+        },
       });
       cleanup();
     }

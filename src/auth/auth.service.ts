@@ -29,7 +29,8 @@ export class AuthService {
   async loginWithIdToken(idToken: string): Promise<UserRow> {
     const decoded: DecodedIdToken = await this.firebase.verifyIdToken(idToken);
     const provider = PROVIDER_MAP[decoded.firebase?.sign_in_provider ?? ''];
-    if (!provider) throw new UnauthorizedException('Unsupported sign-in provider');
+    if (!provider)
+      throw new UnauthorizedException('Unsupported sign-in provider');
 
     // GitHub accounts can hide their email — fall back to a stable synthetic one.
     const email = decoded.email ?? `${decoded.uid}@users.noreply.firebase`;
@@ -45,7 +46,13 @@ export class AuthService {
          oauth_provider = EXCLUDED.oauth_provider,
          oauth_id = EXCLUDED.oauth_id
        RETURNING id, email, name, image, credits`,
-      [email, decoded.name ?? null, decoded.picture ?? null, provider, decoded.uid],
+      [
+        email,
+        decoded.name ?? null,
+        decoded.picture ?? null,
+        provider,
+        decoded.uid,
+      ],
     );
     return row!;
   }

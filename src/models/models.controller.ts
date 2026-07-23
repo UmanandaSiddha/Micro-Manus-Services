@@ -10,17 +10,24 @@ export class ModelsController {
   /** Registry ∩ models the user's stored keys can reach. */
   @Get()
   async models(@User() userId: string) {
-    const keys = await this.db.query<{ provider: KeyProvider; models: string[] }>(
-      `SELECT provider, models FROM api_keys WHERE user_id = $1`,
-      [userId],
-    );
+    const keys = await this.db.query<{
+      provider: KeyProvider;
+      models: string[];
+    }>(`SELECT provider, models FROM api_keys WHERE user_id = $1`, [userId]);
 
     const seen = new Map<
       string,
-      { id: string; label: string; vendor: string; contextWindow: number; pricing: object; via: KeyProvider }
+      {
+        id: string;
+        label: string;
+        vendor: string;
+        contextWindow: number;
+        pricing: object;
+        via: KeyProvider;
+      }
     >();
     for (const key of keys) {
-      for (const m of modelsForKey(key.provider, key.models)) {
+      for (const m of modelsForKey(key.provider)) {
         // Direct vendor key wins over openrouter for the same model (cheaper, native caching)
         if (!seen.has(m.id) || seen.get(m.id)!.via === 'openrouter') {
           seen.set(m.id, {

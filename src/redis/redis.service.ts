@@ -15,7 +15,10 @@ export class RedisService implements OnModuleDestroy {
   }
 
   private build(label: string): Redis {
-    const conn = new Redis({ ...redisConnectionOptions(), maxRetriesPerRequest: null });
+    const conn = new Redis({
+      ...redisConnectionOptions(),
+      maxRetriesPerRequest: null,
+    });
     // Without an 'error' listener ioredis spams unhandled-error events; a Redis
     // blip must degrade (retryStrategy reconnects), not crash the app.
     conn.on('error', (e) => this.log.warn(`redis(${label}): ${e.message}`));

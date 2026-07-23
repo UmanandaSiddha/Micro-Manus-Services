@@ -26,17 +26,25 @@ export class SummarizeProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<{ threadId: string; userId: string; modelId: string }>): Promise<void> {
+  async process(
+    job: Job<{ threadId: string; userId: string; modelId: string }>,
+  ): Promise<void> {
     if (!memoryEnabled()) return;
     const { threadId, userId, modelId } = job.data;
 
-    const msgs = await this.db.query<{ id: string; role: string; content: string }>(
+    const msgs = await this.db.query<{
+      id: string;
+      role: string;
+      content: string;
+    }>(
       `SELECT id, role, content FROM messages
        WHERE thread_id = $1 AND archived = false AND role IN ('user','assistant')
        ORDER BY created_at`,
       [threadId],
     );
-    const totalTokens = estimateTokens(msgs.reduce((a, m) => a + m.content.length, 0));
+    const totalTokens = estimateTokens(
+      msgs.reduce((a, m) => a + m.content.length, 0),
+    );
     if (totalTokens < TRIGGER_TOKENS) return;
 
     // Oldest block ≈ 30k tokens; never touch the last 15 messages.
@@ -70,11 +78,18 @@ export class SummarizeProcessor extends WorkerHost {
       await q.query(
         `INSERT INTO summaries (thread_id, content, embedding, first_message_id, last_message_id)
          VALUES ($1, $2, $3::vector, $4, $5)`,
-        [threadId, summary, toVectorLiteral(vec), block[0].id, block[block.length - 1].id],
+        [
+          threadId,
+          summary,
+          toVectorLiteral(vec),
+          block[0].id,
+          block[block.length - 1].id,
+        ],
       );
-      await q.query(`UPDATE messages SET archived = true WHERE id = ANY($1::uuid[])`, [
-        block.map((m) => m.id),
-      ]);
+      await q.query(
+        `UPDATE messages SET archived = true WHERE id = ANY($1::uuid[])`,
+        [block.map((m) => m.id)],
+      );
     });
     this.log.log(
       `Thread ${threadId}: archived ${block.length} messages into a summary (${blockTokens} est. tokens)`,

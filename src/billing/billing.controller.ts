@@ -35,7 +35,8 @@ export class BillingController {
     @Req() req: RawBodyRequest<Request>,
     @Headers('stripe-signature') signature: string,
   ) {
-    if (!req.rawBody || !signature) throw new BadRequestException('Missing signature');
+    if (!req.rawBody || !signature)
+      throw new BadRequestException('Missing signature');
     try {
       await this.billing.handleWebhook(req.rawBody, signature);
     } catch (e) {

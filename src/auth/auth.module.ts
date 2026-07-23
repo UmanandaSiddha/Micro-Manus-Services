@@ -18,6 +18,10 @@ import { JwtGuard } from './jwt.guard';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, FirebaseService, { provide: APP_GUARD, useClass: JwtGuard }],
+  providers: [
+    AuthService,
+    FirebaseService,
+    { provide: APP_GUARD, useClass: JwtGuard },
+  ],
 })
 export class AuthModule {}

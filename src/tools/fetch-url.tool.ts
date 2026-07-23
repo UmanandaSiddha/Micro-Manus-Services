@@ -17,9 +17,12 @@ async function assertPublicHttpUrl(raw: string): Promise<URL> {
     throw new BadRequestException('Only http(s) URLs are allowed');
   }
   const host = url.hostname;
-  const ips = isIP(host) ? [host] : (await lookup(host, { all: true })).map((a) => a.address);
+  const ips = isIP(host)
+    ? [host]
+    : (await lookup(host, { all: true })).map((a) => a.address);
   for (const ip of ips) {
-    if (isPrivate(ip)) throw new BadRequestException('URL resolves to a private address');
+    if (isPrivate(ip))
+      throw new BadRequestException('URL resolves to a private address');
   }
   return url;
 }
@@ -101,7 +104,10 @@ export class FetchUrlTool implements AgentTool {
       url = await assertPublicHttpUrl(new URL(location, url).toString());
     }
     if (!res.ok) {
-      return { content: `Fetch failed: HTTP ${res.status}`, summary: `HTTP ${res.status} — ${url.hostname}` };
+      return {
+        content: `Fetch failed: HTTP ${res.status}`,
+        summary: `HTTP ${res.status} — ${url.hostname}`,
+      };
     }
     const ct = res.headers.get('content-type') ?? '';
     const raw = (await res.text()).slice(0, 500_000);

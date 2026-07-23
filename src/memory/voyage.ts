@@ -9,7 +9,10 @@ export async function embed(
   if (!key) throw new Error('VOYAGE_API_KEY not configured');
   const res = await fetch('https://api.voyageai.com/v1/embeddings', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${key}`,
+    },
     body: JSON.stringify({ model: MODEL, input: texts, input_type: inputType }),
     signal: AbortSignal.timeout(20_000),
   });

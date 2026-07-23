@@ -16,7 +16,8 @@ const WEEK_MS = 7 * 24 * 3600 * 1000;
  * Secure (HTTPS) — browsers reject SameSite=None without it.
  */
 function cookieOptions() {
-  const sameSite = (process.env.COOKIE_SAMESITE ?? 'lax') as 'lax' | 'none' | 'strict';
+  const sameSite = (process.env.COOKIE_SAMESITE ?? 'lax') as
+    'lax' | 'none' | 'strict';
   return {
     httpOnly: true,
     sameSite,
@@ -43,9 +44,15 @@ export class AuthController {
   @Post('session')
   @HttpCode(200)
   @Throttle({ default: { limit: 15, ttl: 60_000 } })
-  async session(@Body() dto: SessionDto, @Res({ passthrough: true }) res: Response) {
+  async session(
+    @Body() dto: SessionDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const user = await this.auth.loginWithIdToken(dto.idToken);
-    res.cookie(COOKIE, this.auth.signSession(user.id), { ...cookieOptions(), maxAge: WEEK_MS });
+    res.cookie(COOKIE, this.auth.signSession(user.id), {
+      ...cookieOptions(),
+      maxAge: WEEK_MS,
+    });
     return { user };
   }
 

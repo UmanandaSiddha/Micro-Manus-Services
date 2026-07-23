@@ -48,7 +48,10 @@ const CSS = `
   hr { border: none; border-top: 1px solid #e5e7eb; margin: 20px 0; }
 `;
 
-export async function renderPdf(title: string, contentMd: string): Promise<Buffer> {
+export async function renderPdf(
+  title: string,
+  contentMd: string,
+): Promise<Buffer> {
   const bodyHtml = await marked.parse(contentMd, { async: true });
   const date = new Date().toLocaleDateString('en-US', {
     year: 'numeric',

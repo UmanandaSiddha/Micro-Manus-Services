@@ -1,4 +1,9 @@
-import { InjectQueue, OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
+import {
+  InjectQueue,
+  OnWorkerEvent,
+  Processor,
+  WorkerHost,
+} from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { DatabaseService } from '../db/database.service';
@@ -54,11 +59,14 @@ export class AgentProcessor extends WorkerHost {
   }
 
   async process(job: Job<{ runId: string }>): Promise<void> {
-    const run = await this.db.one<RunRow>(`SELECT * FROM runs WHERE id = $1`, [job.data.runId]);
+    const run = await this.db.one<RunRow>(`SELECT * FROM runs WHERE id = $1`, [
+      job.data.runId,
+    ]);
     if (!run || run.status !== 'running') return; // already finalized
 
     const model = getModel(run.model_id);
-    if (!model) return this.finalizeFailed(run, `Unknown model ${run.model_id}`);
+    if (!model)
+      return this.finalizeFailed(run, `Unknown model ${run.model_id}`);
 
     const publish = (e: RunEvent) =>
       this.redis.client.publish(runChannel(run.id), JSON.stringify(e));
@@ -85,8 +93,12 @@ export class AgentProcessor extends WorkerHost {
       }));
 
       // Long-term memory (docs/memory.md): retrieved block goes before recency.
-      const question = [...msgs].reverse().find((m) => m.role === 'user')?.content ?? '';
-      const memoryBlock = await this.memory.retrievalBlock(run.thread_id, question);
+      const question =
+        [...msgs].reverse().find((m) => m.role === 'user')?.content ?? '';
+      const memoryBlock = await this.memory.retrievalBlock(
+        run.thread_id,
+        question,
+      );
       if (memoryBlock) msgs.unshift({ role: 'user', content: memoryBlock });
 
       // Resume support: overlay already-completed steps (BullMQ retry).
@@ -99,7 +111,11 @@ export class AgentProcessor extends WorkerHost {
       dropIncompleteTrailingRound(steps);
       for (const s of steps) {
         if (s.kind === 'llm') {
-          msgs.push({ role: 'assistant', content: s.text, toolCalls: s.toolCalls.length ? s.toolCalls : undefined });
+          msgs.push({
+            role: 'assistant',
+            content: s.text,
+            toolCalls: s.toolCalls.length ? s.toolCalls : undefined,
+          });
         } else {
           msgs.push({ role: 'tool', content: s.content, toolCallId: s.callId });
         }
@@ -110,10 +126,16 @@ export class AgentProcessor extends WorkerHost {
         data: { runId: run.id, threadId: run.thread_id, modelId: run.model_id },
       });
 
-      let runCost = steps.filter((s) => s.kind === 'llm').reduce((a, s) => a + (s as { costUsd: number }).costUsd, 0);
+      let runCost = steps
+        .filter((s) => s.kind === 'llm')
+        .reduce((a, s) => a + (s as { costUsd: number }).costUsd, 0);
       let iteration = steps.filter((s) => s.kind === 'llm').length;
       let finalText = '';
-      const ctx = { userId: run.user_id, threadId: run.thread_id, runId: run.id };
+      const ctx = {
+        userId: run.user_id,
+        threadId: run.thread_id,
+        runId: run.id,
+      };
 
       while (iteration < MAX_ITERATIONS) {
         if (await this.redis.client.get(cancelKey(run.id))) {
@@ -125,7 +147,14 @@ export class AgentProcessor extends WorkerHost {
         const result = await this.llm.streamTurn(key, model, {
           system: SYSTEM_PROMPT,
           messages: forceFinal
-            ? [...msgs, { role: 'user' as const, content: '[system] Tool budget exhausted — write your final answer now with what you have.' }]
+            ? [
+                ...msgs,
+                {
+                  role: 'user' as const,
+                  content:
+                    '[system] Tool budget exhausted — write your final answer now with what you have.',
+                },
+              ]
             : msgs,
           tools: forceFinal ? [] : this.tools.defs(),
           onTextDelta: (delta) =>
@@ -153,10 +182,16 @@ export class AgentProcessor extends WorkerHost {
         await this.persistStep(run.id, llmStep);
         steps.push(llmStep);
 
-        await publish({ event: 'token_usage', data: { stepIndex, ...result.usage } });
+        await publish({
+          event: 'token_usage',
+          data: { stepIndex, ...result.usage },
+        });
         await publish({
           event: 'cost_updated',
-          data: { runCostUsd: runCost, threadCostUsd: await this.usage.threadCost(run.thread_id) },
+          data: {
+            runCostUsd: runCost,
+            threadCostUsd: await this.usage.threadCost(run.thread_id),
+          },
         });
 
         msgs.push({
@@ -205,15 +240,28 @@ export class AgentProcessor extends WorkerHost {
 
             await publish({
               event: 'tool_finished',
-              data: { stepIndex: toolStepIndex, tool: tc.name, summary: out.summary, durationMs },
+              data: {
+                stepIndex: toolStepIndex,
+                tool: tc.name,
+                summary: out.summary,
+                durationMs,
+              },
             });
             if (out.artifactId) {
               await publish({
                 event: 'artifact_created',
-                data: { artifactId: out.artifactId, type: 'pdf', title: out.summary },
+                data: {
+                  artifactId: out.artifactId,
+                  type: 'pdf',
+                  title: out.summary,
+                },
               });
             }
-            msgs.push({ role: 'tool', content: toolStep.content, toolCallId: tc.id });
+            msgs.push({
+              role: 'tool',
+              content: toolStep.content,
+              toolCallId: tc.id,
+            });
           }),
         );
         iteration++;
@@ -248,7 +296,11 @@ export class AgentProcessor extends WorkerHost {
       );
       await publish({
         event: 'run_completed',
-        data: { runId: run.id, costUsd: runCost, credits: credits?.credits ?? 0 },
+        data: {
+          runId: run.id,
+          costUsd: runCost,
+          credits: credits?.credits ?? 0,
+        },
       });
 
       // Fold old turns into summaries when the thread grows (docs/memory.md).
@@ -260,7 +312,9 @@ export class AgentProcessor extends WorkerHost {
     } catch (e) {
       const attempts = (job.opts.attempts ?? 1) as number;
       if (job.attemptsMade + 1 < attempts) {
-        this.log.warn(`Run ${run.id} attempt ${job.attemptsMade + 1} failed, retrying: ${(e as Error).message}`);
+        this.log.warn(
+          `Run ${run.id} attempt ${job.attemptsMade + 1} failed, retrying: ${(e as Error).message}`,
+        );
         throw e; // BullMQ retry → resume from persisted steps
       }
       await this.finalizeFailed(run, (e as Error).message);
@@ -269,14 +323,16 @@ export class AgentProcessor extends WorkerHost {
 
   @OnWorkerEvent('failed')
   onFailed(job: Job<{ runId: string }> | undefined, err: Error) {
-    this.log.error(`Job failed permanently: ${job?.data.runId}: ${err.message}`);
+    this.log.error(
+      `Job failed permanently: ${job?.data.runId}: ${err.message}`,
+    );
   }
 
   private async persistStep(runId: string, step: RunStep): Promise<void> {
-    await this.db.query(`UPDATE runs SET steps = steps || $2::jsonb WHERE id = $1`, [
-      runId,
-      JSON.stringify([step]),
-    ]);
+    await this.db.query(
+      `UPDATE runs SET steps = steps || $2::jsonb WHERE id = $1`,
+      [runId, JSON.stringify([step])],
+    );
   }
 
   /**
@@ -293,7 +349,9 @@ export class AgentProcessor extends WorkerHost {
         [run.id, error.slice(0, 500)],
       );
       if (!failed) return; // already finalized elsewhere — nothing to do
-      await q.query(`UPDATE users SET credits = credits + 1 WHERE id = $1`, [run.user_id]);
+      await q.query(`UPDATE users SET credits = credits + 1 WHERE id = $1`, [
+        run.user_id,
+      ]);
       await q.query(
         `INSERT INTO credit_ledger (user_id, delta, reason, ref_id) VALUES ($1, 1, 'refund', $2)`,
         [run.user_id, run.id],
@@ -303,7 +361,11 @@ export class AgentProcessor extends WorkerHost {
       runChannel(run.id),
       JSON.stringify({
         event: 'run_failed',
-        data: { runId: run.id, error: error.slice(0, 300), creditRefunded: true },
+        data: {
+          runId: run.id,
+          error: error.slice(0, 300),
+          creditRefunded: true,
+        },
       } satisfies RunEvent),
     );
   }

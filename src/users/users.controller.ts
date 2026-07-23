@@ -14,14 +14,18 @@ export class UsersController {
       name: string | null;
       image: string | null;
       credits: number;
-    }>('SELECT id, email, name, image, credits FROM users WHERE id = $1', [userId]);
+    }>('SELECT id, email, name, image, credits FROM users WHERE id = $1', [
+      userId,
+    ]);
 
     const [entitled, key] = await Promise.all([
       this.db.one(
         `SELECT 1 FROM credit_ledger WHERE user_id = $1 AND reason IN ('purchase','coupon') LIMIT 1`,
         [userId],
       ),
-      this.db.one('SELECT 1 FROM api_keys WHERE user_id = $1 LIMIT 1', [userId]),
+      this.db.one('SELECT 1 FROM api_keys WHERE user_id = $1 LIMIT 1', [
+        userId,
+      ]),
     ]);
 
     return {
